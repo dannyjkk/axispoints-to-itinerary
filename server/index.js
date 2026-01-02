@@ -34,6 +34,15 @@ const CARD_MULTIPLIER = {
   'Axis Bank Pride Signature Credit Card': 0.05,
 };
 
+const PROGRAM_CAPABILITY = {
+  united: { level: 'LIVE_RELIABLE', name: 'United MileagePlus', disclaimer: null },
+  aeroplan: { level: 'LIVE_RELIABLE', name: 'Air Canada Aeroplan', disclaimer: null },
+  singapore: { level: 'LIMITED_RELIABLE', name: 'Singapore KrisFlyer', disclaimer: 'Saver-level availability only; results may be incomplete' },
+  flyingblue: { level: 'LIMITED_RELIABLE', name: 'Air France–KLM Flying Blue', disclaimer: 'Saver-level availability only; results may be incomplete' },
+};
+
+const ALLOWED_SOURCES = Object.keys(PROGRAM_CAPABILITY);
+
 const ORIGIN_CODE = {
   Delhi: 'DEL',
   Mumbai: 'BOM',
@@ -108,7 +117,7 @@ app.post('/flowA', async (req, res) => {
       include_trips: 'false',
       only_direct_flights: 'false',
       include_filtered: 'false',
-      sources: 'united,singapore',
+      sources: ALLOWED_SOURCES.join(','),
     });
 
     const seatsUrl = `https://seats.aero/partnerapi/search?${params.toString()}`;
@@ -152,23 +161,38 @@ app.post('/flowA', async (req, res) => {
     }
 
     const filtered = results
-      .filter((r) => {
-        const src = (r?.Source || '').toLowerCase();
-        return src === 'united' || src === 'singapore';
-      })
       .map((r) => {
-        const raw = r?.YMileageCostRaw;
-        const cabinMiles = typeof raw === 'number' ? raw : Number(raw);
-        return { r, cabinMiles, yAvail: r?.YAvailableRaw, src: (r?.Source || '').toLowerCase() };
+        const src = (r?.Source || '').toLowerCase();
+        const capability = PROGRAM_CAPABILITY[src];
+        return { r, src, capability };
       })
-      .filter(({ yAvail, cabinMiles }) => yAvail === true && Number.isFinite(cabinMiles) && cabinMiles > 0)
+      .filter(({ capability }) => capability && (capability.level === 'LIVE_RELIABLE' || capability.level === 'LIMITED_RELIABLE'))
+      .map(({ r, src, capability }) => {
+        const isBusiness = cabinCode === 'J';
+        const avail = isBusiness ? r?.JAvailableRaw : r?.YAvailableRaw;
+        const rawMiles = isBusiness ? r?.JMileageCostRaw : r?.YMileageCostRaw;
+        const cabinMiles = typeof rawMiles === 'number' ? rawMiles : Number(rawMiles);
+        return { r, src, capability, cabinMiles, avail };
+      })
+      .filter(({ avail, cabinMiles }) => avail === true && Number.isFinite(cabinMiles) && cabinMiles > 0)
       .filter(({ cabinMiles }) => cabinMiles <= partnerMiles)
       .slice(0, 5)
-      .map(({ r, cabinMiles, src }) => ({
-        program: src === 'united' ? 'United MileagePlus' : src === 'singapore' ? 'Singapore KrisFlyer' : 'unknown',
+      .map(({ r, cabinMiles, src, capability }) => ({
+        program:
+          src === 'united'
+            ? 'United MileagePlus'
+            : src === 'aeroplan'
+              ? 'Air Canada Aeroplan'
+              : src === 'singapore'
+                ? 'Singapore KrisFlyer'
+                : src === 'flyingblue'
+                  ? 'Air France–KLM Flying Blue'
+                  : 'unknown',
+        capability: capability?.level || 'EXPERIMENTAL',
+        disclaimer: capability?.level === 'LIMITED_RELIABLE' ? capability?.disclaimer : null,
         mileageCost: cabinMiles,
         edgePointsRequired: multiplier ? Math.ceil(cabinMiles / multiplier) : cabinMiles,
-        cabin: 'Economy',
+        cabin: cabinCode === 'J' ? 'Business' : 'Economy',
         origin: originAirport,
         destination: destinationAirport,
         stops: r.stops,

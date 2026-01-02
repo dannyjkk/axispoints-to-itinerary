@@ -55,8 +55,13 @@ const ORIGIN_CITIES = ['Delhi', 'Mumbai', 'Bengaluru', 'Hyderabad', 'Chennai'];
 
 const CABIN_TYPES = ['Economy', 'Business'];
 
-const generateTravelMonths = () => {
-  const months = [];
+interface TravelMonth {
+  label: string;
+  value: string;
+}
+
+const generateTravelMonths = (): TravelMonth[] => {
+  const months: TravelMonth[] = [];
   const now = new Date();
   for (let i = 1; i <= 12; i++) {
     const date = new Date(now.getFullYear(), now.getMonth() + i, 1);
@@ -68,6 +73,19 @@ const generateTravelMonths = () => {
 };
 
 const TRAVEL_MONTHS = generateTravelMonths();
+
+function dedupeOptions(options: any[]) {
+  const seen = new Map<string, any>();
+
+  for (const opt of options) {
+    const key = [opt.program, opt.origin, opt.destination, opt.cabin, opt.mileageCost].join('|');
+    if (!seen.has(key)) {
+      seen.set(key, opt);
+    }
+  }
+
+  return Array.from(seen.values());
+}
 
 export function ItineraryGenerator() {
   const [axisCard, setAxisCard] = useState('');
@@ -124,7 +142,10 @@ export function ItineraryGenerator() {
       const data = await resp.json();
       const options = Array.isArray(data?.options) ? data.options : [];
 
-      const mapped: Itinerary[] = options.map((o: any, idx: number) => ({
+      const deduped = dedupeOptions(options);
+      deduped.sort((a, b) => a.edgePointsRequired - b.edgePointsRequired);
+
+      const mapped: Itinerary[] = deduped.map((o: any, idx: number) => ({
         id: String(idx + 1),
         destination: o.destination || destinationCity,
         duration: 5,
@@ -145,10 +166,11 @@ export function ItineraryGenerator() {
         },
         totalPoints: o.mileageCost || 0,
         highlights: [
+          o.program ? `Program: ${o.program}` : 'Program',
           o.cabin ? `${o.cabin}` : 'Cabin',
           typeof o.stops === 'number' ? `${o.stops} stop(s)` : 'Stops info',
-          `Program: ${o.program || 'N/A'}`,
-        ],
+          o.disclaimer ? `Note: ${o.disclaimer}` : null,
+        ].filter(Boolean) as string[],
         briefItinerary: [],
       }));
 
