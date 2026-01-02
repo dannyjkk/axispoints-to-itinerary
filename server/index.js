@@ -1,6 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import { resolveLocation } from './locationResolver.js';
 
 dotenv.config();
 
@@ -82,7 +83,7 @@ app.post('/flowA', async (req, res) => {
   }
 
   try {
-    const { edgePoints, origin, destination, travelMonth, cabin, cardDisplayName } = req.body || {};
+    const { edgePoints, origin, destination, travelMonth, cabin, cardDisplayName, onlyDirect } = req.body || {};
 
     if (
       edgePoints === undefined ||
@@ -105,8 +106,12 @@ app.post('/flowA', async (req, res) => {
       return res.status(400).json({ error: 'Invalid cabin', detail: 'Cabin must be Economy, Business, Premium Economy, or First' });
     }
 
-    // TODO: add LLM destination resolution; for now assume user input is destination airport or free text
-    const destinationAirport = destination.trim();
+    // Resolve destination to airports (LLM-backed, with fallback)
+    const resolved = await resolveLocation(destination);
+    const destinationAirport =
+  resolved?.airports?.length > 0
+    ? resolved.airports.map(a => a.iata).join(',')
+    : destination.trim();
 
     const params = new URLSearchParams({
       origin_airport: originAirport,
@@ -115,7 +120,7 @@ app.post('/flowA', async (req, res) => {
       end_date,
       take: '500',
       include_trips: 'false',
-      only_direct_flights: 'false',
+      only_direct_flights: onlyDirect === true ? 'true' : 'false',
       include_filtered: 'false',
       sources: ALLOWED_SOURCES.join(','),
     });
@@ -160,7 +165,7 @@ app.post('/flowA', async (req, res) => {
       console.log('Seats preview (first 3):', preview);
     }
 
-    const filtered = results
+    const mapped = results
       .map((r) => {
         const src = (r?.Source || '').toLowerCase();
         const capability = PROGRAM_CAPABILITY[src];
@@ -172,33 +177,53 @@ app.post('/flowA', async (req, res) => {
         const avail = isBusiness ? r?.JAvailableRaw : r?.YAvailableRaw;
         const rawMiles = isBusiness ? r?.JMileageCostRaw : r?.YMileageCostRaw;
         const cabinMiles = typeof rawMiles === 'number' ? rawMiles : Number(rawMiles);
-        return { r, src, capability, cabinMiles, avail };
+
+        let dest = null;
+        if (r?.destination_airport) {
+          dest = r.destination_airport;
+        } else if (r?.DestinationAirport) {
+          dest = r.DestinationAirport;
+        } else if (typeof r?.Route === 'string' && r.Route.includes('-')) {
+          const parts = r.Route.split('-');
+          dest = parts[1]?.trim() || null;
+        } else if (r?.Route?.DestinationAirport) {
+          dest = r.Route.DestinationAirport;
+        }
+
+        return { r, src, capability, cabinMiles, avail, dest };
       })
       .filter(({ avail, cabinMiles }) => avail === true && Number.isFinite(cabinMiles) && cabinMiles > 0)
       .filter(({ cabinMiles }) => cabinMiles <= partnerMiles)
-      .slice(0, 5)
-      .map(({ r, cabinMiles, src, capability }) => ({
-        program:
-          src === 'united'
-            ? 'United MileagePlus'
-            : src === 'aeroplan'
-              ? 'Air Canada Aeroplan'
-              : src === 'singapore'
-                ? 'Singapore KrisFlyer'
-                : src === 'flyingblue'
-                  ? 'Air France–KLM Flying Blue'
-                  : 'unknown',
-        capability: capability?.level || 'EXPERIMENTAL',
-        disclaimer: capability?.level === 'LIMITED_RELIABLE' ? capability?.disclaimer : null,
-        mileageCost: cabinMiles,
-        edgePointsRequired: multiplier ? Math.ceil(cabinMiles / multiplier) : cabinMiles,
-        cabin: cabinCode === 'J' ? 'Business' : 'Economy',
-        origin: originAirport,
-        destination: destinationAirport,
-        stops: r.stops,
-        YAvailable: r.YAvailable,
-        JAvailable: r.JAvailable,
-      }));
+      .map(({ r, cabinMiles, src, capability, dest }) => {
+        const derivedStops =
+          typeof r?.stops === 'number'
+            ? r.stops
+            : (r?.YDirectRaw === true || r?.JDirectRaw === true) ? 0 : null;
+
+        return {
+          program:
+            src === 'united'
+              ? 'United MileagePlus'
+              : src === 'aeroplan'
+                ? 'Air Canada Aeroplan'
+                : src === 'singapore'
+                  ? 'Singapore KrisFlyer'
+                  : src === 'flyingblue'
+                    ? 'Air France–KLM Flying Blue'
+                    : 'unknown',
+          capability: capability?.level || 'EXPERIMENTAL',
+          disclaimer: capability?.level === 'LIMITED_RELIABLE' ? capability?.disclaimer : null,
+          mileageCost: cabinMiles,
+          edgePointsRequired: multiplier ? Math.ceil(cabinMiles / multiplier) : cabinMiles,
+          cabin: cabinCode === 'J' ? 'Business' : 'Economy',
+          origin: originAirport,
+          destination: dest,
+          stops: derivedStops,
+          YAvailable: r.YAvailable,
+          JAvailable: r.JAvailable,
+        };
+      })
+      .slice(0, 5);
 
     return res.json({
       input: {
@@ -212,7 +237,7 @@ app.post('/flowA', async (req, res) => {
         end_date,
         cabin: cabinCode,
       },
-      options: filtered,
+      options: mapped,
     });
   } catch (err) {
     console.error('FlowA error:', err);

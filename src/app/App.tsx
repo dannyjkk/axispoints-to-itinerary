@@ -62,11 +62,11 @@ export default function App() {
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="generate" className="space-y-4">
+          <TabsContent value="generate" className="space-y-4" forceMount>
             <ItineraryGenerator />
           </TabsContent>
 
-          <TabsContent value="calculate" className="space-y-4">
+          <TabsContent value="calculate" className="space-y-4" forceMount>
             <PointsCalculator />
           </TabsContent>
         </Tabs>

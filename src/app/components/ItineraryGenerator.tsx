@@ -13,6 +13,7 @@ interface Itinerary {
   destination: string;
   duration: number;
   hotelStarRating: 4 | 5;
+  stops?: number | null;
   flight?: {
     airline: string;
     departure: string;
@@ -94,10 +95,10 @@ export function ItineraryGenerator() {
   const [cabinType, setCabinType] = useState('');
   const [originCity, setOriginCity] = useState('');
   const [destinationCity, setDestinationCity] = useState('');
-  const [tripType, setTripType] = useState<'international' | 'domestic' | ''>(''); // kept for UI; ignored in backend
   const [itineraries, setItineraries] = useState<Itinerary[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [directOnly, setDirectOnly] = useState(false);
 
   const resetForm = () => {
     setAxisCard('');
@@ -106,9 +107,9 @@ export function ItineraryGenerator() {
     setCabinType('');
     setOriginCity('');
     setDestinationCity('');
-    setTripType('');
     setItineraries([]);
     setError(null);
+    setDirectOnly(false);
   };
 
   const generateItineraries = async () => {
@@ -126,6 +127,7 @@ export function ItineraryGenerator() {
         travelMonth,
         cabin: cabinType,
         cardDisplayName: AXIS_BANK_CARDS.find((c) => c.id === axisCard)?.name || axisCard,
+        onlyDirect: directOnly,
       };
 
       const resp = await fetch('http://localhost:3001/flowA', {
@@ -150,6 +152,7 @@ export function ItineraryGenerator() {
         destination: o.destination || destinationCity,
         duration: 5,
         hotelStarRating: 4,
+        stops: typeof o.stops === 'number' ? o.stops : null,
         flight: {
           airline: o.program || 'Program',
           departure: data?.input?.start_date || '',
@@ -170,6 +173,7 @@ export function ItineraryGenerator() {
           o.cabin ? `${o.cabin}` : 'Cabin',
           typeof o.stops === 'number' ? `${o.stops} stop(s)` : 'Stops info',
           o.disclaimer ? `Note: ${o.disclaimer}` : null,
+          o.stops === 0 ? 'Nonstop' : null,
         ].filter(Boolean) as string[],
         briefItinerary: [],
       }));
@@ -281,39 +285,33 @@ export function ItineraryGenerator() {
           <div className="space-y-2">
             <Label htmlFor="destination">
               <MapPin className="inline w-4 h-4 mr-1" />
-              Destination City
+              Destination
             </Label>
             <Input
               id="destination"
               type="text"
-              placeholder="e.g., Paris, France"
+              placeholder="e.g., Paris, France, Europe"
               value={destinationCity}
               onChange={(e) => setDestinationCity(e.target.value)}
             />
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="trip-type">Trip Type</Label>
-            <Select value={tripType} onValueChange={(val) => setTripType(val as 'international' | 'domestic')}>
-              <SelectTrigger id="trip-type">
-                <SelectValue placeholder="Select trip type" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="international">International</SelectItem>
-                <SelectItem value="domestic">Domestic</SelectItem>
-              </SelectContent>
-            </Select>
+            <Label htmlFor="direct-only">Direct flights only</Label>
+            <div className="flex items-center space-x-2">
+              <Input
+                id="direct-only"
+                type="checkbox"
+                checked={directOnly}
+                onChange={(e) => setDirectOnly(e.target.checked)}
+                className="h-4 w-4"
+              />
+              <span className="text-sm text-muted-foreground">
+                Only show nonstop options (when available)
+              </span>
+            </div>
           </div>
         </div>
-
-        {tripType === 'domestic' && (
-          <Alert>
-            <Info className="h-4 w-4" />
-            <AlertDescription>
-              Note: Flights are not redeemable for domestic trips as of now. Only hotel stays can be booked with points.
-            </AlertDescription>
-          </Alert>
-        )}
 
         <Button
           onClick={generateItineraries}
@@ -354,9 +352,16 @@ export function ItineraryGenerator() {
                           {itinerary.duration} days • {itinerary.hotelStarRating}-Star Hotel
                         </CardDescription>
                       </div>
-                      <Badge variant="secondary" className="text-lg">
-                        {itinerary.totalPoints.toLocaleString()} pts
-                      </Badge>
+                      <div className="flex items-center gap-2">
+                        {itinerary.stops === 0 && (
+                          <Badge variant="outline" className="text-xs font-semibold">
+                            Nonstop
+                          </Badge>
+                        )}
+                        <Badge variant="secondary" className="text-lg">
+                          {itinerary.totalPoints.toLocaleString()} pts
+                        </Badge>
+                      </div>
                     </div>
                   </CardHeader>
                   <CardContent className="space-y-4">
