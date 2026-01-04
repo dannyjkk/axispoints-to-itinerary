@@ -10,7 +10,8 @@ import { Alert, AlertDescription } from './ui/alert';
 
 interface Itinerary {
   id: string;
-  destination: string;
+  destination: string | null;
+  destinationName?: string | null;
   duration: number;
   hotelStarRating: 4 | 5;
   stops?: number | null;
@@ -149,7 +150,8 @@ export function ItineraryGenerator() {
 
       const mapped: Itinerary[] = deduped.map((o: any, idx: number) => ({
         id: String(idx + 1),
-        destination: o.destination || destinationCity,
+        destination: o.destinationName || o.destination || null,
+        destinationName: o.destinationName || null,
         duration: 5,
         hotelStarRating: 4,
         stops: typeof o.stops === 'number' ? o.stops : null,

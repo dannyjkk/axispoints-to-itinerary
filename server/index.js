@@ -108,10 +108,11 @@ app.post('/flowA', async (req, res) => {
 
     // Resolve destination to airports (LLM-backed, with fallback)
     const resolved = await resolveLocation(destination);
+    const resolvedAirports = Array.isArray(resolved?.airports) ? resolved.airports : [];
     const destinationAirport =
-  resolved?.airports?.length > 0
-    ? resolved.airports.map(a => a.iata).join(',')
-    : destination.trim();
+      resolvedAirports.length > 0
+        ? resolvedAirports.map((a) => a.iata).join(',')
+        : destination.trim();
 
     const params = new URLSearchParams({
       origin_airport: originAirport,
@@ -190,11 +191,14 @@ app.post('/flowA', async (req, res) => {
           dest = r.Route.DestinationAirport;
         }
 
-        return { r, src, capability, cabinMiles, avail, dest };
+        const match = resolvedAirports.find((a) => a.iata === dest);
+        const destDisplay = match?.city || match?.iata || dest;
+
+        return { r, src, capability, cabinMiles, avail, dest, destDisplay };
       })
       .filter(({ avail, cabinMiles }) => avail === true && Number.isFinite(cabinMiles) && cabinMiles > 0)
       .filter(({ cabinMiles }) => cabinMiles <= partnerMiles)
-      .map(({ r, cabinMiles, src, capability, dest }) => {
+      .map(({ r, cabinMiles, src, capability, dest, destDisplay }) => {
         const derivedStops =
           typeof r?.stops === 'number'
             ? r.stops
@@ -218,6 +222,7 @@ app.post('/flowA', async (req, res) => {
           cabin: cabinCode === 'J' ? 'Business' : 'Economy',
           origin: originAirport,
           destination: dest,
+          destinationName: destDisplay || null,
           stops: derivedStops,
           YAvailable: r.YAvailable,
           JAvailable: r.JAvailable,
