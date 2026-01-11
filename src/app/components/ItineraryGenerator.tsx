@@ -15,6 +15,7 @@ interface Itinerary {
   duration: number;
   hotelStarRating: 4 | 5;
   stops?: number | null;
+  tripSummary?: string[];
   flight?: {
     airline: string;
     departure: string;
@@ -93,6 +94,7 @@ export function ItineraryGenerator() {
   const [axisCard, setAxisCard] = useState('');
   const [availablePoints, setAvailablePoints] = useState('');
   const [travelMonth, setTravelMonth] = useState('');
+  const [tripDuration, setTripDuration] = useState('');
   const [cabinType, setCabinType] = useState('');
   const [originCity, setOriginCity] = useState('');
   const [destinationCity, setDestinationCity] = useState('');
@@ -105,6 +107,7 @@ export function ItineraryGenerator() {
     setAxisCard('');
     setAvailablePoints('');
     setTravelMonth('');
+    setTripDuration('');
     setCabinType('');
     setOriginCity('');
     setDestinationCity('');
@@ -114,7 +117,7 @@ export function ItineraryGenerator() {
   };
 
   const generateItineraries = async () => {
-    if (!axisCard || !availablePoints || !travelMonth || !cabinType || !originCity || !destinationCity) return;
+    if (!axisCard || !availablePoints || !travelMonth || !tripDuration || !cabinType || !originCity || !destinationCity) return;
 
     setLoading(true);
     setError(null);
@@ -126,6 +129,7 @@ export function ItineraryGenerator() {
         origin: originCity,
         destination: destinationCity,
         travelMonth,
+        tripDuration,
         cabin: cabinType,
         cardDisplayName: AXIS_BANK_CARDS.find((c) => c.id === axisCard)?.name || axisCard,
         onlyDirect: directOnly,
@@ -170,14 +174,13 @@ export function ItineraryGenerator() {
           bookingLink: '#',
         },
         totalPoints: o.mileageCost || 0,
-        highlights: [
-          o.program ? `Program: ${o.program}` : 'Program',
-          o.cabin ? `${o.cabin}` : 'Cabin',
-          typeof o.stops === 'number' ? `${o.stops} stop(s)` : 'Stops info',
-          o.disclaimer ? `Note: ${o.disclaimer}` : null,
-          o.stops === 0 ? 'Nonstop' : null,
-        ].filter(Boolean) as string[],
-        briefItinerary: [],
+        highlights: [],
+        briefItinerary:
+          (Array.isArray(o.tripSummary) && o.tripSummary.length > 0
+            ? o.tripSummary
+            : Array.isArray(o.summary) && o.summary.length > 0
+              ? o.summary
+              : []),
       }));
 
       setItineraries(mapped);
@@ -244,6 +247,20 @@ export function ItineraryGenerator() {
                 ))}
               </SelectContent>
             </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="trip-duration">
+              Trip Duration (days)
+            </Label>
+            <Input
+              id="trip-duration"
+              type="number"
+              min="1"
+              placeholder="e.g., 5"
+              value={tripDuration}
+              onChange={(e) => setTripDuration(e.target.value)}
+            />
           </div>
 
           <div className="space-y-2">
@@ -376,9 +393,6 @@ export function ItineraryGenerator() {
                           </div>
                           <div className="space-y-1 text-sm">
                             <div>{itinerary.flight.airline}</div>
-                            <div className="text-muted-foreground">
-                              {itinerary.flight.departure} → {itinerary.flight.return}
-                            </div>
                             <div className="font-medium">
                               {itinerary.flight.pointsCost.toLocaleString()} points
                             </div>
@@ -414,20 +428,9 @@ export function ItineraryGenerator() {
                       </div>
                     </div>
 
-                    <div className="space-y-2">
-                      <div className="text-sm">Trip Highlights:</div>
-                      <div className="flex flex-wrap gap-2">
-                        {itinerary.highlights.map((highlight, idx) => (
-                          <Badge key={idx} variant="outline">
-                            {highlight}
-                          </Badge>
-                        ))}
-                      </div>
-                    </div>
-
                     {itinerary.briefItinerary && itinerary.briefItinerary.length > 0 && (
                       <div className="space-y-2">
-                        <div className="text-sm font-medium">Brief Itinerary:</div>
+                        <div className="text-sm font-medium">Trip Summary:</div>
                         <ul className="text-sm text-muted-foreground space-y-1 pl-4">
                           {itinerary.briefItinerary.map((item, idx) => (
                             <li key={idx} className="list-disc">

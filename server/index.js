@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import { resolveLocation } from './locationResolver.js';
+import OpenAI from 'openai';
 
 dotenv.config();
 
@@ -44,6 +45,79 @@ const PROGRAM_CAPABILITY = {
 
 const ALLOWED_SOURCES = Object.keys(PROGRAM_CAPABILITY);
 
+let openaiClient = null;
+const summaryCache = new Map(); // key: dest|days -> string[]
+
+function getOpenAIClient() {
+  if (openaiClient) return openaiClient;
+  const key = process.env.OPENAI_API_KEY;
+  if (!key) return null;
+  openaiClient = new OpenAI({ apiKey: key });
+  return openaiClient;
+}
+
+async function generateTripSummary(destinationName, days) {
+  const key = `${destinationName || 'unknown'}|${days || 0}`;
+  if (summaryCache.has(key)) return summaryCache.get(key);
+
+  const client = getOpenAIClient();
+  if (!client) {
+    const fallback = ['Explore the city at your own pace'];
+    summaryCache.set(key, fallback);
+    return fallback;
+  }
+
+  const safeDays = Math.max(1, Math.min(Number(days) || 1, 30));
+  const prompt = `
+You are generating a concise trip summary for a generic sightseeing, first-time visit.
+Destination: ${destinationName || 'unknown'}
+Duration: ${safeDays} day(s)
+
+Return a JSON array of 3-5 short bullet strings (one sentence each), max 5 bullets, no numbering, no emojis, no specific hotels or bookings. If duration < 5, reduce bullets accordingly. Focus on realistic day-by-day flow (arrival, central landmarks, culture/food, optional day trip, departure).`;
+
+  try {
+    const wasCached = summaryCache.has(key);
+    const resp = await client.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [
+        { role: 'system', content: 'Return only JSON array of strings. No extra text.' },
+        { role: 'user', content: prompt },
+      ],
+      response_format: { type: 'json_object' },
+    });
+
+    const content = resp.choices?.[0]?.message?.content || '';
+    // Debug: raw LLM output for testing
+    console.log('[TripSummaryRaw]', {
+      destinationCity: destinationName || 'unknown',
+      rawOutput: content,
+    });
+
+    const parsed = JSON.parse(content);
+    const arr = Array.isArray(parsed) ? parsed : Array.isArray(parsed?.bullets) ? parsed.bullets : Array.isArray(parsed?.summary) ? parsed.summary : parsed?.tripSummary;
+    const bullets = Array.isArray(arr) ? arr : parsed?.airports ? [] : [];
+    const cleaned = (bullets || []).map((s) => (typeof s === 'string' ? s.trim() : '')).filter(Boolean).slice(0, 5);
+    const finalSummary = cleaned.length > 0 ? cleaned : ['Explore the city at your own pace'];
+    const usedFallback = finalSummary.length === 1 && finalSummary[0] === 'Explore the city at your own pace';
+    if (!wasCached) {
+      // eslint-disable-next-line no-console
+      console.log('[TripSummaryGenerated]', {
+        destinationCity: destinationName || 'unknown',
+        durationDays: safeDays,
+        usedFallback,
+      });
+    }
+    summaryCache.set(key, finalSummary);
+    return finalSummary;
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.error('trip summary error:', err?.message || err);
+    const fallback = ['Explore the city at your own pace'];
+    summaryCache.set(key, fallback);
+    return fallback;
+  }
+}
+
 const ORIGIN_CODE = {
   Delhi: 'DEL',
   Mumbai: 'BOM',
@@ -83,7 +157,16 @@ app.post('/flowA', async (req, res) => {
   }
 
   try {
-    const { edgePoints, origin, destination, travelMonth, cabin, cardDisplayName, onlyDirect } = req.body || {};
+    const {
+      edgePoints,
+      origin,
+      destination,
+      travelMonth,
+      cabin,
+      cardDisplayName,
+      onlyDirect,
+      tripDuration,
+    } = req.body || {};
 
     if (
       edgePoints === undefined ||
@@ -198,37 +281,53 @@ app.post('/flowA', async (req, res) => {
       })
       .filter(({ avail, cabinMiles }) => avail === true && Number.isFinite(cabinMiles) && cabinMiles > 0)
       .filter(({ cabinMiles }) => cabinMiles <= partnerMiles)
-      .map(({ r, cabinMiles, src, capability, dest, destDisplay }) => {
-        const derivedStops =
-          typeof r?.stops === 'number'
-            ? r.stops
-            : (r?.YDirectRaw === true || r?.JDirectRaw === true) ? 0 : null;
-
-        return {
-          program:
-            src === 'united'
-              ? 'United MileagePlus'
-              : src === 'aeroplan'
-                ? 'Air Canada Aeroplan'
-                : src === 'singapore'
-                  ? 'Singapore KrisFlyer'
-                  : src === 'flyingblue'
-                    ? 'Air France–KLM Flying Blue'
-                    : 'unknown',
-          capability: capability?.level || 'EXPERIMENTAL',
-          disclaimer: capability?.level === 'LIMITED_RELIABLE' ? capability?.disclaimer : null,
-          mileageCost: cabinMiles,
-          edgePointsRequired: multiplier ? Math.ceil(cabinMiles / multiplier) : cabinMiles,
-          cabin: cabinCode === 'J' ? 'Business' : 'Economy',
-          origin: originAirport,
-          destination: dest,
-          destinationName: destDisplay || null,
-          stops: derivedStops,
-          YAvailable: r.YAvailable,
-          JAvailable: r.JAvailable,
-        };
-      })
       .slice(0, 5);
+
+    // Precompute summaries once per destination display/dest
+    const summaryByDest = new Map();
+    for (const item of mapped) {
+      const keyDest = item.destDisplay || item.dest || destinationAirport;
+      if (!summaryByDest.has(keyDest)) {
+        const summary =
+          (await generateTripSummary(keyDest, tripDuration)) || ['Explore the city at your own pace'];
+        summaryByDest.set(keyDest, summary);
+      }
+    }
+
+    const mappedWithSummary = mapped.map((item) => {
+      const keyDest = item.destDisplay || item.dest || destinationAirport;
+      const summary = summaryByDest.get(keyDest) || ['Explore the city at your own pace'];
+
+      const derivedStops =
+        typeof item.r?.stops === 'number'
+          ? item.r.stops
+          : (item.r?.YDirectRaw === true || item.r?.JDirectRaw === true) ? 0 : null;
+
+      return {
+        program:
+          item.src === 'united'
+            ? 'United MileagePlus'
+            : item.src === 'aeroplan'
+              ? 'Air Canada Aeroplan'
+              : item.src === 'singapore'
+                ? 'Singapore KrisFlyer'
+                : item.src === 'flyingblue'
+                  ? 'Air France–KLM Flying Blue'
+                  : 'unknown',
+        capability: item.capability?.level || 'EXPERIMENTAL',
+        disclaimer: item.capability?.level === 'LIMITED_RELIABLE' ? item.capability?.disclaimer : null,
+        mileageCost: item.cabinMiles,
+        edgePointsRequired: multiplier ? Math.ceil(item.cabinMiles / multiplier) : item.cabinMiles,
+        cabin: cabinCode === 'J' ? 'Business' : 'Economy',
+        origin: originAirport,
+        destination: item.dest,
+        destinationName: item.destDisplay || null,
+        stops: derivedStops,
+        tripSummary: summary,
+        YAvailable: item.r.YAvailable,
+        JAvailable: item.r.JAvailable,
+      };
+    });
 
     return res.json({
       input: {
@@ -242,7 +341,7 @@ app.post('/flowA', async (req, res) => {
         end_date,
         cabin: cabinCode,
       },
-      options: mapped,
+      options: mappedWithSummary,
     });
   } catch (err) {
     console.error('FlowA error:', err);
