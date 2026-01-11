@@ -135,7 +135,7 @@ export function ItineraryGenerator() {
         onlyDirect: directOnly,
       };
 
-      const resp = await fetch('http://localhost:3001/flowA', {
+      const resp = await fetch('/api/itinerary', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
