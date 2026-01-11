@@ -17,12 +17,16 @@ function requireFields(obj, fields = []) {
 }
 
 function generateItinerary({ origin, destination, points = 0, days = 3 }) {
-  const perDayPoints = Math.max(1, Math.floor(points / (days || 1)));
+  const safeDays = Math.max(1, Math.floor(days || 1));
+  const safePoints = Math.max(0, Math.floor(points || 0));
+  const basePerDay = safeDays > 0 ? Math.max(1, Math.floor(safePoints / safeDays)) : 1;
+  const perDayPoints =
+    safePoints > 0 && basePerDay > safePoints ? safePoints : basePerDay;
   const itinerary = [];
-  for (let d = 1; d <= days; d++) {
+  for (let d = 1; d <= safeDays; d++) {
     const picks = [];
     picks.push(activities[(d - 1) % activities.length]);
-    picks.push(activities[(d + 1) % activities.length]);
+    picks.push(activities[d % activities.length]);
     const hotelTier =
       points > 100000 ? 'Premium hotel' : points > 50000 ? 'Comfort hotel' : 'Budget hotel';
     itinerary.push({
@@ -37,8 +41,8 @@ function generateItinerary({ origin, destination, points = 0, days = 3 }) {
     meta: {
       origin,
       destination,
-      totalDays: days,
-      pointsUsedEstimate: perDayPoints * days,
+      totalDays: safeDays,
+      pointsUsedEstimate: Math.min(safePoints, perDayPoints * safeDays),
     },
     days: itinerary,
   };
@@ -75,8 +79,22 @@ export default async function handler(req, res) {
 
     const origin = String(data.origin);
     const destination = String(data.destination);
-    const points = Number(data.points || 0);
-    const days = Number(data.days || 3);
+
+    const pointsRaw = Number(data.points ?? 0);
+    if (!Number.isFinite(pointsRaw)) {
+      const err = new Error('Invalid points: must be a number');
+      err.status = 400;
+      throw err;
+    }
+    const points = pointsRaw;
+
+    const daysRaw = Number(data.days ?? 3);
+    if (!Number.isFinite(daysRaw) || daysRaw < 1) {
+      const err = new Error('Invalid days: must be a positive number');
+      err.status = 400;
+      throw err;
+    }
+    const days = Math.max(1, Math.floor(daysRaw));
 
     const result = generateItinerary({ origin, destination, points, days });
 
