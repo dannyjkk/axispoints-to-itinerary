@@ -49,7 +49,7 @@ function generateItinerary({ origin, destination, points = 0, days = 3 }) {
 }
 
 // ---- Vercel Serverless Handler ----
-export default async function handler(req, res) {
+module.exports = async function handler(req, res) {
   try {
     const url = new URL(req.url, `https://${req.headers.host}`);
     const path = url.pathname;
