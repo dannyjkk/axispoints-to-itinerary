@@ -17,94 +17,69 @@ function requireFields(obj, fields = []) {
 }
 
 function generateItinerary({ origin, destination, points = 0, days = 3 }) {
-  const safeDays = Math.max(1, Math.floor(days || 1));
-  const safePoints = Math.max(0, Math.floor(points || 0));
-  const basePerDay = safeDays > 0 ? Math.max(1, Math.floor(safePoints / safeDays)) : 1;
-  const perDayPoints =
-    safePoints > 0 && basePerDay > safePoints ? safePoints : basePerDay;
+  const perDayPoints = Math.max(1, Math.floor(points / (days || 1)));
   const itinerary = [];
-  for (let d = 1; d <= safeDays; d++) {
-    const picks = [];
-    picks.push(activities[(d - 1) % activities.length]);
-    picks.push(activities[d % activities.length]);
-    const hotelTier =
-      points > 100000 ? 'Premium hotel' : points > 50000 ? 'Comfort hotel' : 'Budget hotel';
+  for (let d = 1; d <= days; d++) {
     itinerary.push({
       day: d,
-      title: `Day ${d}: ${origin} → ${destination}`,
-      activities: picks,
-      suggestedHotel: `${hotelTier} near center`,
+      activities: [
+        activities[(d - 1) % activities.length],
+        activities[(d + 1) % activities.length],
+      ],
+      suggestedHotel:
+        points > 100000 ? 'Premium hotel near center'
+        : points > 50000 ? 'Comfort hotel near center'
+        : 'Budget hotel near center',
       estimatedPointsRequiredToday: perDayPoints,
     });
   }
-  return {
-    meta: {
-      origin,
-      destination,
-      totalDays: safeDays,
-      pointsUsedEstimate: Math.min(safePoints, perDayPoints * safeDays),
-    },
-    days: itinerary,
-  };
+  return itinerary;
 }
 
 // ---- Vercel Serverless Handler ----
 export default async function handler(req, res) {
   try {
-    const url = new URL(req.url, `https://${req.headers.host}`);
-    const path = url.pathname;
-
-    // Health check
-    if (req.method === 'GET' && path === '/api/itinerary/health') {
-      res.statusCode = 200;
-      res.setHeader('Content-Type', 'application/json');
-      return res.end(JSON.stringify({ ok: true, route: '/api/itinerary', status: 'healthy' }));
-    }
-
-    // Only POST allowed
     if (req.method !== 'POST') {
-      res.statusCode = 405;
-      res.setHeader('Content-Type', 'application/json');
-      return res.end(JSON.stringify({ ok: false, error: 'Method not allowed' }));
+      res.status(405).json({ error: 'Method not allowed' });
+      return;
     }
 
-    // Read raw body
-    let body = '';
-    for await (const chunk of req) {
-      body += chunk;
-    }
-    const data = JSON.parse(body || '{}');
+    const body = await new Promise((resolve) => {
+      let data = '';
+      req.on('data', (chunk) => (data += chunk));
+      req.on('end', () => resolve(JSON.parse(data || '{}')));
+    });
 
-    requireFields(data, ['origin', 'destination']);
+    requireFields(body, ['origin', 'destination']);
 
-    const origin = String(data.origin);
-    const destination = String(data.destination);
+    const origin = String(body.origin);
+    const destination = String(body.destination);
+    const points = Number(body.edgePoints || 0);
+    const days = Number(body.tripDuration || 3);
 
-    const pointsRaw = Number(data.points ?? 0);
-    if (!Number.isFinite(pointsRaw)) {
-      const err = new Error('Invalid points: must be a number');
-      err.status = 400;
-      throw err;
-    }
-    const points = pointsRaw;
+    const generated = generateItinerary({ origin, destination, points, days });
 
-    const daysRaw = Number(data.days ?? 3);
-    if (!Number.isFinite(daysRaw) || daysRaw < 1) {
-      const err = new Error('Invalid days: must be a positive number');
-      err.status = 400;
-      throw err;
-    }
-    const days = Math.max(1, Math.floor(daysRaw));
+    // Wrap into frontend-expected response shape
+    const options = generated.map((d) => ({
+      destinationName: destination,
+      destination,
+      program: 'Axis Points',
+      mileageCost: d.estimatedPointsRequiredToday,
+      tripSummary: d.activities,
+      stops: 0,
+    }));
 
-    const result = generateItinerary({ origin, destination, points, days });
+    const response = {
+      options,
+      input: {
+        start_date: body.travelMonth,
+        end_date: body.travelMonth,
+      },
+    };
 
-    res.statusCode = 200;
-    res.setHeader('Content-Type', 'application/json');
-    return res.end(JSON.stringify({ ok: true, data: result }));
+    res.status(200).json(response);
 
   } catch (err) {
-    res.statusCode = err.status || 500;
-    res.setHeader('Content-Type', 'application/json');
-    return res.end(JSON.stringify({ ok: false, error: err.message || 'Internal error' }));
+    res.status(err.status || 500).json({ error: err.message || 'Internal error' });
   }
-};
+}
