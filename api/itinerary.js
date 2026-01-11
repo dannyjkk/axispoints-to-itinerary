@@ -44,30 +44,49 @@ function generateItinerary({ origin, destination, points = 0, days = 3 }) {
   };
 }
 
+// ---- Vercel Serverless Handler ----
 module.exports = async function handler(req, res) {
   try {
+    const url = new URL(req.url, `https://${req.headers.host}`);
+    const path = url.pathname;
+
     // Health check
-    if (req.method === 'GET' && req.url && req.url.includes('/health')) {
-      return res.status(200).json({ ok: true, route: '/api/itinerary', status: 'healthy' });
+    if (req.method === 'GET' && path === '/api/itinerary/health') {
+      res.statusCode = 200;
+      res.setHeader('Content-Type', 'application/json');
+      return res.end(JSON.stringify({ ok: true, route: '/api/itinerary', status: 'healthy' }));
     }
 
+    // Only POST allowed
     if (req.method !== 'POST') {
-      return res.status(405).json({ ok: false, error: 'Method not allowed' });
+      res.statusCode = 405;
+      res.setHeader('Content-Type', 'application/json');
+      return res.end(JSON.stringify({ ok: false, error: 'Method not allowed' }));
     }
 
-    const body = req.body || {};
-    requireFields(body, ['origin', 'destination']);
+    // Read raw body
+    let body = '';
+    for await (const chunk of req) {
+      body += chunk;
+    }
+    const data = JSON.parse(body || '{}');
 
-    const origin = String(body.origin);
-    const destination = String(body.destination);
-    const points = Number(body.points || 0);
-    const days = Number(body.days || 3);
+    requireFields(data, ['origin', 'destination']);
+
+    const origin = String(data.origin);
+    const destination = String(data.destination);
+    const points = Number(data.points || 0);
+    const days = Number(data.days || 3);
 
     const result = generateItinerary({ origin, destination, points, days });
-    return res.status(200).json({ ok: true, data: result });
+
+    res.statusCode = 200;
+    res.setHeader('Content-Type', 'application/json');
+    return res.end(JSON.stringify({ ok: true, data: result }));
+
   } catch (err) {
-    const status = err.status || 500;
-    return res.status(status).json({ ok: false, error: err.message || 'Internal error' });
+    res.statusCode = err.status || 500;
+    res.setHeader('Content-Type', 'application/json');
+    return res.end(JSON.stringify({ ok: false, error: err.message || 'Internal error' }));
   }
 };
-
