@@ -150,7 +150,7 @@ export function ItineraryGenerator() {
       const options = Array.isArray(data?.options) ? data.options : [];
 
       const deduped = dedupeOptions(options);
-      deduped.sort((a, b) => a.edgePointsRequired - b.edgePointsRequired);
+      deduped.sort((a, b) => a.mileageCost - b.mileageCost);
 
       const mapped: Itinerary[] = deduped.map((o: any, idx: number) => ({
         id: String(idx + 1),
