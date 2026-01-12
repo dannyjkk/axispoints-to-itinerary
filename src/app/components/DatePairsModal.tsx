@@ -8,8 +8,9 @@ import {
 } from './ui/dialog';
 import { Badge } from './ui/badge';
 import { Skeleton } from './ui/skeleton';
-import { Plane, ArrowRight, Hotel, ExternalLink } from 'lucide-react';
+import { Plane, ArrowRight, Hotel, ExternalLink, Sparkles } from 'lucide-react';
 import { Button } from './ui/button';
+import { getApiBase } from '../lib/api';
 
 // Types for date pair cards
 export interface TripSummary {
@@ -166,10 +167,17 @@ function FlightLine({ trip, label }: { trip: TripSummary | null; label: string }
   );
 }
 
+interface DatePairCardViewProps {
+  card: DatePairCard;
+  destination: string;
+  tripSummary: string[] | null;
+  tripSummaryLoading: boolean;
+}
+
 /**
  * Single date pair card component
  */
-function DatePairCardView({ card, destination }: { card: DatePairCard; destination: string }) {
+function DatePairCardView({ card, destination, tripSummary, tripSummaryLoading }: DatePairCardViewProps) {
   const [hotels, setHotels] = React.useState<HotelTile[]>([]);
   const [hotelsLoading, setHotelsLoading] = React.useState(true);
 
@@ -242,6 +250,37 @@ function DatePairCardView({ card, destination }: { card: DatePairCard; destinati
           )}
         </div>
       </div>
+
+      {/* Trip Summary */}
+      <div className="border-t pt-3 mt-3">
+        <div className="flex items-center gap-2 mb-2">
+          <Sparkles className="w-4 h-4 text-muted-foreground" />
+          <span className="text-sm font-medium text-muted-foreground">
+            {card.nights}-Night Trip Itinerary
+          </span>
+        </div>
+        {tripSummaryLoading ? (
+          <div className="space-y-2">
+            <Skeleton className="h-3 w-full" />
+            <Skeleton className="h-3 w-5/6" />
+            <Skeleton className="h-3 w-4/6" />
+            <Skeleton className="h-3 w-5/6" />
+            <Skeleton className="h-3 w-3/6" />
+          </div>
+        ) : tripSummary && tripSummary.length > 0 ? (
+          <ul className="text-sm text-muted-foreground space-y-1 pl-4">
+            {tripSummary.map((item, idx) => (
+              <li key={idx} className="list-disc">
+                {item}
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            Explore the destination at your own pace.
+          </p>
+        )}
+      </div>
     </div>
   );
 }
@@ -293,6 +332,74 @@ export function DatePairsModal({
   cards,
   error,
 }: DatePairsModalProps) {
+  // Trip summaries by duration (nights): Map<nights, string[]>
+  const [tripSummaries, setTripSummaries] = React.useState<Map<number, string[]>>(new Map());
+  const [summariesLoading, setSummariesLoading] = React.useState<Set<number>>(new Set());
+
+  // Fetch trip summaries for unique durations when cards change
+  React.useEffect(() => {
+    if (!cards || cards.length === 0 || !destination) return;
+
+    // Get unique durations
+    const uniqueNights = [...new Set(cards.map((c) => c.nights))];
+    
+    // Filter out durations we already have
+    const needToFetch = uniqueNights.filter((n) => !tripSummaries.has(n));
+    
+    if (needToFetch.length === 0) return;
+
+    // Mark as loading
+    setSummariesLoading((prev) => {
+      const next = new Set(prev);
+      needToFetch.forEach((n) => next.add(n));
+      return next;
+    });
+
+    // Fetch each unique duration (deduplicated API calls)
+    const fetchSummaries = async () => {
+      const base = getApiBase();
+      
+      await Promise.all(
+        needToFetch.map(async (nights) => {
+          try {
+            const params = new URLSearchParams({
+              destination,
+              nights: String(nights),
+            });
+            const resp = await fetch(`${base}/api/trip-summary?${params.toString()}`);
+            const data = await resp.json();
+            
+            if (resp.ok && data?.summary) {
+              setTripSummaries((prev) => {
+                const next = new Map(prev);
+                next.set(nights, data.summary);
+                return next;
+              });
+            }
+          } catch (err) {
+            console.error(`Failed to fetch trip summary for ${nights} nights:`, err);
+          } finally {
+            setSummariesLoading((prev) => {
+              const next = new Set(prev);
+              next.delete(nights);
+              return next;
+            });
+          }
+        })
+      );
+    };
+
+    fetchSummaries();
+  }, [cards, destination, tripSummaries]);
+
+  // Reset summaries when modal closes
+  React.useEffect(() => {
+    if (!open) {
+      setTripSummaries(new Map());
+      setSummariesLoading(new Set());
+    }
+  }, [open]);
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
@@ -324,7 +431,13 @@ export function DatePairsModal({
           {!loading &&
             !error &&
             cards.map((card, idx) => (
-              <DatePairCardView key={idx} card={card} destination={destination} />
+              <DatePairCardView
+                key={idx}
+                card={card}
+                destination={destination}
+                tripSummary={tripSummaries.get(card.nights) || null}
+                tripSummaryLoading={summariesLoading.has(card.nights)}
+              />
             ))}
         </div>
       </DialogContent>

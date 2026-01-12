@@ -1,7 +1,7 @@
 import cors from 'cors';
 import dotenv from 'dotenv';
 import express from 'express';
-import { processFlowA, ping } from './flowAHandler.js';
+import { processFlowA, ping, generateTripSummaryWithDuration } from './flowAHandler.js';
 import { handleDatePairs, handleTrips } from './seatsHandlers.js';
 
 dotenv.config();
@@ -43,6 +43,29 @@ app.post('/flowA', handleGenerate); // legacy path
 app.post('/api/generate-itinerary', handleGenerate);
 app.get('/api/seats/date-pairs', handleDatePairs);
 app.get('/api/seats/trips', handleTrips);
+
+/**
+ * GET /api/trip-summary
+ * Query params: destination (string), nights (number)
+ * Returns: { summary: string[] }
+ */
+app.get('/api/trip-summary', async (req, res) => {
+  const { destination, nights } = req.query;
+  
+  if (!destination) {
+    return res.status(400).json({ error: 'Missing destination parameter' });
+  }
+  
+  const nightsNum = parseInt(nights, 10) || 3;
+  
+  try {
+    const summary = await generateTripSummaryWithDuration(destination, nightsNum);
+    res.status(200).json({ summary });
+  } catch (err) {
+    console.error('[trip-summary error]', err);
+    res.status(500).json({ error: err?.message || 'Failed to generate trip summary' });
+  }
+});
 
 app.use((req, res) => {
   res.status(404).json({ error: 'Not found' });

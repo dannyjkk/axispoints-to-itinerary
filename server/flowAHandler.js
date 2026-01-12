@@ -37,6 +37,8 @@ const ALLOWED_SOURCES = Object.keys(PROGRAM_CAPABILITY);
 let openaiClient = null;
 const summaryCache = new Map(); // key: destination -> string[]
 const summaryInFlight = new Map(); // key: destination -> Promise<string[]>
+const durationSummaryCache = new Map(); // key: destination:nights -> string[]
+const durationSummaryInFlight = new Map(); // key: destination:nights -> Promise<string[]>
 const DEFAULT_SUMMARY = ['Explore the city at your own pace'];
 
 function getOpenAIClient() {
@@ -102,6 +104,75 @@ Return a JSON array of exactly 5 short bullet strings (one sentence each). No nu
     return result;
   } finally {
     summaryInFlight.delete(key);
+  }
+}
+
+/**
+ * Generate trip summary for a specific destination and duration (nights)
+ * Caches by destination:nights to avoid duplicate API calls
+ */
+async function generateTripSummaryWithDuration(destinationName, nights) {
+  const key = `${destinationName || 'unknown'}:${nights || 3}`;
+  if (durationSummaryCache.has(key)) return durationSummaryCache.get(key);
+
+  if (durationSummaryInFlight.has(key)) return durationSummaryInFlight.get(key);
+
+  const task = (async () => {
+    const client = getOpenAIClient();
+    if (!client) return DEFAULT_SUMMARY;
+
+    const prompt = `
+You are generating a concise trip summary for a ${nights}-night trip to ${destinationName || 'a destination'}.
+This is for a first-time visitor doing general sightseeing.
+
+Return a JSON array of exactly 5 short bullet strings (one sentence each). No numbering, no emojis, no specific hotels or bookings.
+Tailor the itinerary to fit ${nights} nights:
+- For 3 nights: Focus on must-see highlights and central attractions
+- For 4-5 nights: Add a day trip or secondary neighborhood
+- For 6+ nights: Include deeper exploration, local experiences, and relaxation time
+
+Focus on realistic day-by-day flow appropriate for the trip length.`;
+
+    try {
+      const resp = await client.chat.completions.create({
+        model: 'gpt-4o-mini',
+        messages: [
+          { role: 'system', content: 'Return only JSON array of strings. No extra text.' },
+          { role: 'user', content: prompt },
+        ],
+        response_format: { type: 'json_object' },
+      });
+
+      const content = resp.choices?.[0]?.message?.content || '';
+      console.log('[TripSummaryWithDurationRaw]', {
+        destination: destinationName || 'unknown',
+        nights,
+        rawOutput: content,
+      });
+      const parsed = JSON.parse(content);
+      const arr = Array.isArray(parsed) ? parsed : Array.isArray(parsed?.bullets) ? parsed.bullets : Array.isArray(parsed?.summary) ? parsed.summary : parsed?.tripSummary;
+      const bullets = Array.isArray(arr) ? arr : [];
+      const cleaned = (bullets || []).map((s) => (typeof s === 'string' ? s.trim() : '')).filter(Boolean).slice(0, 5);
+      const finalSummary = cleaned.length > 0 ? cleaned : DEFAULT_SUMMARY;
+      console.log('[TripSummaryWithDurationGenerated]', {
+        destination: destinationName || 'unknown',
+        nights,
+        usedFallback: finalSummary.length === 1 && finalSummary[0] === DEFAULT_SUMMARY[0],
+      });
+      return finalSummary;
+    } catch (err) {
+      console.error('trip summary with duration error:', err?.message || err);
+      return DEFAULT_SUMMARY;
+    }
+  })();
+
+  durationSummaryInFlight.set(key, task);
+  try {
+    const result = await task;
+    durationSummaryCache.set(key, result);
+    return result;
+  } finally {
+    durationSummaryInFlight.delete(key);
   }
 }
 
@@ -404,4 +475,6 @@ export async function processFlowA(body = {}) {
 export function ping() {
   return { message: 'pong' };
 }
+
+export { generateTripSummaryWithDuration };
 

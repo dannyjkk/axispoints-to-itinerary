@@ -5,7 +5,7 @@ import { Label } from './ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
-import { MapPin, Calendar, Hotel, Plane, CreditCard, ExternalLink } from 'lucide-react';
+import { MapPin, Calendar, Plane, CreditCard } from 'lucide-react';
 import { getApiBase } from '../lib/api';
 import { DatePairsModal, DatePairCard } from './DatePairsModal';
 
@@ -446,90 +446,37 @@ export function ItineraryGenerator() {
             <div className="grid gap-4">
               {itineraries.map((itinerary) => (
                 <Card key={itinerary.id}>
-                  <CardHeader>
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <CardTitle className="flex items-center gap-2">
-                          <MapPin className="w-5 h-5" />
-                          {itinerary.destination}
-                        </CardTitle>
-                        <CardDescription>
-                          <Calendar className="inline w-3 h-3 mr-1" />
-                          {itinerary.hotelStarRating}-Star Hotel
-                        </CardDescription>
-                      </div>
+                  <CardHeader className="pb-3">
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="flex items-center gap-2">
+                        <MapPin className="w-5 h-5" />
+                        {itinerary.destination}
+                      </CardTitle>
                       <div className="flex items-center gap-2">
                         {itinerary.stops === 0 && (
                           <Badge variant="outline" className="text-xs font-semibold">
                             Nonstop
                           </Badge>
                         )}
-                        <Badge variant="secondary" className="text-lg">
-                          {itinerary.totalPoints.toLocaleString()} pts
-                        </Badge>
                       </div>
                     </div>
                   </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="grid gap-4 md:grid-cols-2">
-                      {itinerary.flight && (
-                        <div className="space-y-2 p-3 bg-muted rounded-lg">
-                          <div className="flex items-center gap-2">
-                            <Plane className="w-4 h-4" />
-                            <span>Flight</span>
-                          </div>
-                          <div className="space-y-1 text-sm">
-                            <div>{itinerary.flight.airline}</div>
-                            <div className="font-medium">
-                              {itinerary.flight.pointsCost.toLocaleString()} points
-                            </div>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="w-full mt-2"
-                              onClick={() => handleSeeExactDates(itinerary)}
-                            >
-                              See exact dates & stays
-                            </Button>
-                          </div>
-                        </div>
-                      )}
-
-                      <div className="space-y-2 p-3 bg-muted rounded-lg">
-                        <div className="flex items-center gap-2">
-                          <Hotel className="w-4 h-4" />
-                          <span>Hotel ({itinerary.hotelStarRating}-Star)</span>
-                        </div>
-                        <div className="space-y-1 text-sm">
-                          <div>{itinerary.hotel.name}</div>
-                          <div className="text-muted-foreground">{itinerary.hotel.brand}</div>
-                          <div className="text-muted-foreground">
-                            {itinerary.hotel.pointsPerNight.toLocaleString()} pts/night
-                          </div>
-                          <div className="font-medium">
-                            {itinerary.hotel.totalPoints.toLocaleString()} points total
-                          </div>
-                          <Button variant="outline" size="sm" asChild className="w-full mt-2">
-                            <a href={itinerary.hotel.bookingLink} target="_blank" rel="noopener noreferrer">
-                              Book Hotel <ExternalLink className="ml-1 w-3 h-3" />
-                            </a>
-                          </Button>
-                        </div>
+                  <CardContent className="pt-0">
+                    <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
+                      <div className="flex items-center gap-3">
+                        <Plane className="w-4 h-4 text-primary" />
+                        <span className="text-sm font-medium">
+                          {itinerary.flight?.airline || 'Flight Available'}
+                        </span>
                       </div>
+                      <Button
+                        variant="default"
+                        size="sm"
+                        onClick={() => handleSeeExactDates(itinerary)}
+                      >
+                        See exact dates & stays
+                      </Button>
                     </div>
-
-                    {itinerary.briefItinerary && itinerary.briefItinerary.length > 0 && (
-                      <div className="space-y-2">
-                        <div className="text-sm font-medium">Trip Summary:</div>
-                        <ul className="text-sm text-muted-foreground space-y-1 pl-4">
-                          {itinerary.briefItinerary.map((item, idx) => (
-                            <li key={idx} className="list-disc">
-                              {item}
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
                   </CardContent>
                 </Card>
               ))}
