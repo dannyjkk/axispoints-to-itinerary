@@ -4,7 +4,6 @@ import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Button } from './ui/button';
-import { Badge } from './ui/badge';
 import { MapPin, Calendar, Plane, CreditCard } from 'lucide-react';
 import { getApiBase } from '../lib/api';
 import { DatePairsModal, DatePairCard } from './DatePairsModal';
@@ -449,19 +448,10 @@ export function ItineraryGenerator() {
               {itineraries.map((itinerary) => (
                 <Card key={itinerary.id}>
                   <CardHeader className="pb-3">
-                    <div className="flex items-center justify-between">
-                      <CardTitle className="flex items-center gap-2">
-                        <MapPin className="w-5 h-5" />
-                        {itinerary.destination}
-                      </CardTitle>
-                      <div className="flex items-center gap-2">
-                        {itinerary.stops === 0 && (
-                          <Badge variant="outline" className="text-xs font-semibold">
-                            Nonstop
-                          </Badge>
-                        )}
-                      </div>
-                    </div>
+                    <CardTitle className="flex items-center gap-2">
+                      <MapPin className="w-5 h-5" />
+                      {itinerary.destination}
+                    </CardTitle>
                   </CardHeader>
                   <CardContent className="pt-0">
                     <div className="flex items-center justify-between p-3 bg-muted rounded-lg">

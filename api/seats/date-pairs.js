@@ -239,17 +239,13 @@ export default async function handler(req, res) {
       return dateA.localeCompare(dateB);
     });
 
-    // 4) Find up to 3 valid date pairs
-    const pairs = [];
-    const usedOutboundDates = new Set();
+    // 4) Find ALL valid pairs, grouped by duration (nights)
+    const pairsByDuration = new Map(); // Map<nights, pair[]>
 
     for (const outItem of sortedOutbound) {
-      if (pairs.length >= 3) break;
-
       const outDate = outItem?.Date;
-      if (!outDate || usedOutboundDates.has(outDate)) continue;
+      if (!outDate) continue;
 
-      // Pick outbound cabin: economy if available, else business; if neither, skip
       const outAvail = getCabinAvailability(outItem);
       let chosenCabin = null;
       if (preferEconomy) {
@@ -261,62 +257,83 @@ export default async function handler(req, res) {
       }
       if (!chosenCabin) continue;
 
-      // Compute return date window
       const earliestReturn = addDays(outDate, minN);
       const latestReturn = addDays(outDate, maxN);
 
-      // Find the closest return date within window where SAME cabin is available
-      let matchedReturn = null;
-      let matchedReturnDate = null;
-
-      // Collect all valid return dates in window
-      const validReturnDates = [];
+      // Find all valid return dates for this outbound
       for (const [rDateStr, rItems] of returnByDate) {
         if (rDateStr < earliestReturn || rDateStr > latestReturn) continue;
+        
+        let matchedReturn = null;
+        let matchedCabin = chosenCabin;
+        
+        // Try preferred cabin first
         const cabinItems = chosenCabin === 'economy' ? rItems.economy : rItems.business;
         if (cabinItems.length > 0) {
-          validReturnDates.push({ date: rDateStr, items: cabinItems });
+          matchedReturn = cabinItems[0];
         }
-      }
-
-      // Sort by date to pick closest to earliestReturn
-      validReturnDates.sort((a, b) => a.date.localeCompare(b.date));
-
-      if (validReturnDates.length > 0) {
-        matchedReturnDate = validReturnDates[0].date;
-        matchedReturn = validReturnDates[0].items[0]; // Pick first available
-      }
-
-      // Fallback: if no same-cabin return, try other cabin
-      if (!matchedReturn) {
-        const fallbackCabin = chosenCabin === 'economy' ? 'business' : 'economy';
-        const fallbackDates = [];
-        for (const [rDateStr, rItems] of returnByDate) {
-          if (rDateStr < earliestReturn || rDateStr > latestReturn) continue;
-          const cabinItems = fallbackCabin === 'economy' ? rItems.economy : rItems.business;
-          if (cabinItems.length > 0) {
-            fallbackDates.push({ date: rDateStr, items: cabinItems, cabin: fallbackCabin });
+        
+        // Fallback to other cabin
+        if (!matchedReturn) {
+          const fallbackCabin = chosenCabin === 'economy' ? 'business' : 'economy';
+          const fallbackItems = fallbackCabin === 'economy' ? rItems.economy : rItems.business;
+          if (fallbackItems.length > 0) {
+            matchedReturn = fallbackItems[0];
+            matchedCabin = fallbackCabin;
           }
         }
-        fallbackDates.sort((a, b) => a.date.localeCompare(b.date));
-        if (fallbackDates.length > 0) {
-          matchedReturnDate = fallbackDates[0].date;
-          matchedReturn = fallbackDates[0].items[0];
-          // Note: we keep the outbound cabin as chosenCabin for display consistency
+        
+        if (!matchedReturn) continue;
+        
+        const nights = nightsBetween(outDate, rDateStr);
+        if (nights < minN || nights > maxN) continue;
+        
+        if (!pairsByDuration.has(nights)) {
+          pairsByDuration.set(nights, []);
         }
+        
+        pairsByDuration.get(nights).push({
+          outboundItem: outItem,
+          returnItem: matchedReturn,
+          departDate: outDate,
+          returnDate: rDateStr,
+          chosenCabin: matchedCabin,
+          nights,
+        });
       }
-
-      if (!matchedReturn || !matchedReturnDate) continue;
-
-      usedOutboundDates.add(outDate);
-      pairs.push({
-        outboundItem: outItem,
-        returnItem: matchedReturn,
-        departDate: outDate,
-        returnDate: matchedReturnDate,
-        chosenCabin,
-      });
     }
+
+    // Get available durations and spread them to pick 5 unique ones
+    const availableDurations = [...pairsByDuration.keys()].sort((a, b) => a - b);
+    
+    // Pick up to 5 durations with good spread
+    let selectedDurations = [];
+    if (availableDurations.length <= 5) {
+      selectedDurations = availableDurations;
+    } else {
+      // Spread evenly across the range
+      const step = (availableDurations.length - 1) / 4; // 5 picks = 4 gaps
+      for (let i = 0; i < 5; i++) {
+        const idx = Math.round(i * step);
+        selectedDurations.push(availableDurations[idx]);
+      }
+      // Remove duplicates and ensure uniqueness
+      selectedDurations = [...new Set(selectedDurations)];
+    }
+
+    // Pick one pair per selected duration (earliest outbound date)
+    const pairs = [];
+    for (const nights of selectedDurations) {
+      const candidates = pairsByDuration.get(nights) || [];
+      if (candidates.length > 0) {
+        // Sort by outbound date and pick the first
+        candidates.sort((a, b) => a.departDate.localeCompare(b.departDate));
+        pairs.push(candidates[0]);
+      }
+    }
+
+    // Sort final pairs by nights ascending
+    pairs.sort((a, b) => a.nights - b.nights);
 
     if (pairs.length === 0) {
       return res.status(200).json({
