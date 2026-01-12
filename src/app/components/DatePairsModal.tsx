@@ -223,7 +223,7 @@ function DatePairCardView({ card, destination, tripSummary, tripSummaryLoading }
       <div className="border-t pt-3 mt-3">
         <div className="flex items-center gap-2 mb-2">
           <Hotel className="w-4 h-4 text-muted-foreground" />
-          <span className="text-sm font-medium text-muted-foreground">Hotels</span>
+          <span className="text-sm font-medium text-muted-foreground">Hotels (Placeholder - WIP)</span>
         </div>
         <div className="grid gap-2 grid-cols-3">
           {hotelsLoading ? (
