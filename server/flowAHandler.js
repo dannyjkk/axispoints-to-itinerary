@@ -36,6 +36,8 @@ const ALLOWED_SOURCES = Object.keys(PROGRAM_CAPABILITY);
 
 let openaiClient = null;
 const summaryCache = new Map(); // key: dest|days -> string[]
+const summaryInFlight = new Map(); // key: dest|days -> Promise<string[]>
+const DEFAULT_SUMMARY = ['Explore the city at your own pace'];
 
 function getOpenAIClient() {
   if (openaiClient) return openaiClient;
@@ -49,54 +51,60 @@ async function generateTripSummary(destinationName, days) {
   const key = `${destinationName || 'unknown'}|${days || 0}`;
   if (summaryCache.has(key)) return summaryCache.get(key);
 
-  const client = getOpenAIClient();
-  if (!client) {
-    const fallback = ['Explore the city at your own pace'];
-    summaryCache.set(key, fallback);
-    return fallback;
-  }
+  if (summaryInFlight.has(key)) return summaryInFlight.get(key);
 
-  const safeDays = Math.max(1, Math.min(Number(days) || 1, 30));
-  const prompt = `
+  const task = (async () => {
+    const client = getOpenAIClient();
+    if (!client) return DEFAULT_SUMMARY;
+
+    const safeDays = Math.max(1, Math.min(Number(days) || 1, 30));
+    const prompt = `
 You are generating a concise trip summary for a generic sightseeing, first-time visit.
 Destination: ${destinationName || 'unknown'}
 Duration: ${safeDays} day(s)
 
 Return a JSON array of 3-5 short bullet strings (one sentence each), max 5 bullets, no numbering, no emojis, no specific hotels or bookings. If duration < 5, reduce bullets accordingly. Focus on realistic day-by-day flow (arrival, central landmarks, culture/food, optional day trip, departure).`;
 
-  try {
-    const resp = await client.chat.completions.create({
-      model: 'gpt-4o-mini',
-      messages: [
-        { role: 'system', content: 'Return only JSON array of strings. No extra text.' },
-        { role: 'user', content: prompt },
-      ],
-      response_format: { type: 'json_object' },
-    });
+    try {
+      const resp = await client.chat.completions.create({
+        model: 'gpt-4o-mini',
+        messages: [
+          { role: 'system', content: 'Return only JSON array of strings. No extra text.' },
+          { role: 'user', content: prompt },
+        ],
+        response_format: { type: 'json_object' },
+      });
 
-    const content = resp.choices?.[0]?.message?.content || '';
-    console.log('[TripSummaryRaw]', {
-      destinationCity: destinationName || 'unknown',
-      rawOutput: content,
-    });
-    const parsed = JSON.parse(content);
-    const arr = Array.isArray(parsed) ? parsed : Array.isArray(parsed?.bullets) ? parsed.bullets : Array.isArray(parsed?.summary) ? parsed.summary : parsed?.tripSummary;
-    const bullets = Array.isArray(arr) ? arr : parsed?.airports ? [] : [];
-    const cleaned = (bullets || []).map((s) => (typeof s === 'string' ? s.trim() : '')).filter(Boolean).slice(0, 5);
-    const finalSummary = cleaned.length > 0 ? cleaned : ['Explore the city at your own pace'];
-    const usedFallback = finalSummary.length === 1 && finalSummary[0] === 'Explore the city at your own pace';
-    console.log('[TripSummaryGenerated]', {
-      destinationCity: destinationName || 'unknown',
-      durationDays: safeDays,
-      usedFallback,
-    });
-    summaryCache.set(key, finalSummary);
-    return finalSummary;
-  } catch (err) {
-    console.error('trip summary error:', err?.message || err);
-    const fallback = ['Explore the city at your own pace'];
-    summaryCache.set(key, fallback);
-    return fallback;
+      const content = resp.choices?.[0]?.message?.content || '';
+      console.log('[TripSummaryRaw]', {
+        destinationCity: destinationName || 'unknown',
+        rawOutput: content,
+      });
+      const parsed = JSON.parse(content);
+      const arr = Array.isArray(parsed) ? parsed : Array.isArray(parsed?.bullets) ? parsed.bullets : Array.isArray(parsed?.summary) ? parsed.summary : parsed?.tripSummary;
+      const bullets = Array.isArray(arr) ? arr : parsed?.airports ? [] : [];
+      const cleaned = (bullets || []).map((s) => (typeof s === 'string' ? s.trim() : '')).filter(Boolean).slice(0, 5);
+      const finalSummary = cleaned.length > 0 ? cleaned : DEFAULT_SUMMARY;
+      const usedFallback = finalSummary.length === 1 && finalSummary[0] === DEFAULT_SUMMARY[0];
+      console.log('[TripSummaryGenerated]', {
+        destinationCity: destinationName || 'unknown',
+        durationDays: safeDays,
+        usedFallback,
+      });
+      return finalSummary;
+    } catch (err) {
+      console.error('trip summary error:', err?.message || err);
+      return DEFAULT_SUMMARY;
+    }
+  })();
+
+  summaryInFlight.set(key, task);
+  try {
+    const result = await task;
+    summaryCache.set(key, result);
+    return result;
+  } finally {
+    summaryInFlight.delete(key);
   }
 }
 
@@ -305,9 +313,32 @@ export async function processFlowA(body = {}) {
     .filter(Boolean)
     .sort((a, b) => a.edgePointsRequired - b.edgePointsRequired);
 
+  // Deduplicate trip summary generation per destination within a single request.
+  // Without this, parallel Promise.all calls would all miss the cache and spam the LLM.
+  const summaryPromiseByDestination = new Map();
+  const getSummaryForDestination = (destKey) => {
+    const key = destKey || 'unknown';
+    if (summaryPromiseByDestination.has(key)) {
+      return summaryPromiseByDestination.get(key);
+    }
+    const promise = generateTripSummary(key, tripDuration)
+      .then((result) => {
+        // Replace stored promise with a resolved one to avoid holding onto a long chain
+        summaryPromiseByDestination.set(key, Promise.resolve(result));
+        return result;
+      })
+      .catch((err) => {
+        // Allow retries on failure by removing the failed entry
+        summaryPromiseByDestination.delete(key);
+        throw err;
+      });
+    summaryPromiseByDestination.set(key, promise);
+    return promise;
+  };
+
   const enriched = await Promise.all(
     mapped.map(async (item) => {
-      const summary = await generateTripSummary(item.destinationName || item.destination, tripDuration);
+      const summary = await getSummaryForDestination(item.destinationName || item.destination);
       return {
         ...item,
         tripSummary: summary,
