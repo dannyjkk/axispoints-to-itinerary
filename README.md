@@ -106,21 +106,80 @@ These are **deliberate product decisions** to keep the MVP focused on:
 ---
 
 ## 🔧 Local Dev & API Base
-- Backend: run `npm run server` (defaults to `PORT=3001`).
-- Frontend: run `npm run dev -- --host`; API base resolution order:
-  1) `VITE_API_URL` or `VITE_API_BASE` (strip trailing slash)
-  2) If `import.meta.env.DEV`: `http://localhost:3001`
-  3) Otherwise: same-origin (for hosted/serverless)
-- Optional Vite proxy (dev): `vite.config.ts` proxies `/api` to `http://localhost:3001`.
-- Example `.env.development` (not committed):
-  - `VITE_API_URL=http://localhost:3001`
-  - `SEATS_API_KEY=...`
-  - `OPENAI_API_KEY=...`
-- Local test options:
-  - Option A: `PORT=3001 npm run server` and `VITE_API_URL=http://localhost:3001 npm run dev`
-  - Option B: ensure proxy present, run backend on :3001, then `npm run dev`
-- Production: set `VITE_API_URL=https://your-backend.example.com` in Vercel (Production & Preview).
-- Smoke test: open app, run generate, check Network tab calls `/api/generate-itinerary` to the expected domain and gets 200.
+
+### Quick Start (Local)
+
+```bash
+# Terminal 1 - Backend (Express server for local dev)
+npm run server
+
+# Terminal 2 - Frontend (Vite dev server)
+npm run dev -- --host
+```
+
+### Environment Variables
+
+Create a `.env` file in the project root (not committed):
+
+```env
+# Required for Seats.aero API calls
+SEATS_API_KEY=your_seats_api_key
+
+# Required for OpenAI trip summaries
+OPENAI_API_KEY=your_openai_api_key
+
+# Optional: Override API base URL for frontend
+# Leave unset to use Vite proxy or same-origin in production
+# VITE_API_URL=http://localhost:3001
+```
+
+### API Base Resolution Order (Frontend)
+
+The `getApiBase()` helper in `src/app/lib/api.ts` resolves the API URL:
+1. `VITE_API_URL` or `VITE_API_BASE` env vars (if set)
+2. `http://localhost:3001` in development mode
+3. Same-origin (empty string) in production — routes to Vercel serverless functions
+
+### Vite Proxy (Dev)
+
+The `vite.config.ts` proxies `/api` routes to `http://localhost:3001` during development,
+so you can use relative `/api/...` paths without CORS issues.
+
+### Vercel Deployment
+
+For Vercel, set these environment variables in the Vercel dashboard
+(Settings → Environment Variables → apply to Production, Preview, Development):
+
+| Variable | Description |
+|----------|-------------|
+| `SEATS_API_KEY` | Seats.aero Partner API key |
+| `OPENAI_API_KEY` | OpenAI API key for trip summaries |
+
+**Important**: Do NOT set `VITE_API_URL` in Vercel — leave it unset so the frontend
+uses same-origin routing to Vercel's `/api` serverless functions.
+
+### API Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/generate-itinerary` | POST | Generate itinerary options from EDGE points |
+| `/api/ping` | GET | Health check |
+| `/api/seats/date-pairs` | GET | Get up to 3 date-pair cards with flight details |
+| `/api/seats/trips` | GET | Proxy to Seats.aero Get Trips (debugging) |
+
+### Date Pairs Endpoint Query Params
+
+`GET /api/seats/date-pairs`
+
+| Param | Required | Default | Description |
+|-------|----------|---------|-------------|
+| `origin_airport` | Yes | — | IATA code (e.g., "BLR") |
+| `destination_airport` | Yes | — | IATA code (e.g., "BKK") |
+| `start_date` | Yes | — | YYYY-MM-DD (month start) |
+| `end_date` | Yes | — | YYYY-MM-DD (month end) |
+| `min_nights` | No | 3 | Minimum trip length |
+| `max_nights` | No | 10 | Maximum trip length |
+| `cabin_pref` | No | "economy" | Cabin preference ("economy" or "business") |
 
 ---
 
@@ -147,5 +206,58 @@ It is designed as a **PM-led technical prototype**, not a full booking engine.
 ## 📌 Status
 
 ✅ Flow A complete and functional  
-🚧 Frontend wiring in progress  
+✅ "See exact dates & stays" modal with date pairs  
+🚧 Hotel integration placeholder (stub)  
 🔜 Flow B and AI itinerary generation planned
+
+---
+
+## ✅ Testing & Deployment Checklist
+
+### Local Testing
+
+1. **Start backend**: `npm run server` → should show "Server running on http://localhost:3001"
+2. **Start frontend**: `npm run dev -- --host` → open the displayed URL
+3. **Ping test**: Click "Ping API" button → should show "pong"
+4. **Generate itinerary**:
+   - Select Axis card, enter points (e.g., 100000)
+   - Choose origin, destination (e.g., "Bangkok"), travel month
+   - Click "Find Available Trips"
+   - Verify results appear
+5. **Date pairs modal**:
+   - On any result card, click "See exact dates & stays"
+   - Modal should open with loading skeleton
+   - After loading, should show 0-3 date pair cards with flight details
+   - Hotels section should show 3 placeholder tiles
+
+### Vercel Preview Testing
+
+1. Push branch to GitHub
+2. Vercel auto-deploys preview
+3. Open preview URL
+4. Repeat steps 3-5 from local testing
+5. Check Network tab: `/api/seats/date-pairs` should return 200
+6. Verify no `localhost` calls in Network tab
+
+### Production Deployment
+
+1. Merge to `main` branch
+2. Vercel auto-deploys to production
+3. Verify all features work on production URL
+4. Monitor Vercel logs for any 500 errors
+
+### One Real Seats Request Test
+
+```bash
+# Test date-pairs endpoint directly
+curl "https://your-app.vercel.app/api/seats/date-pairs?\
+origin_airport=BLR&\
+destination_airport=BKK&\
+start_date=2026-02-01&\
+end_date=2026-02-28&\
+min_nights=3&\
+max_nights=10&\
+cabin_pref=economy"
+```
+
+Expected: JSON with `cards` array containing 0-3 date pair objects.

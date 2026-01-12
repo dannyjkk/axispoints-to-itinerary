@@ -5,9 +5,9 @@ import { Label } from './ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
-import { ExternalLink, MapPin, Calendar, Hotel, Plane, CreditCard, Info } from 'lucide-react';
-import { Alert, AlertDescription } from './ui/alert';
+import { MapPin, Calendar, Hotel, Plane, CreditCard, ExternalLink } from 'lucide-react';
 import { getApiBase } from '../lib/api';
+import { DatePairsModal, DatePairCard } from './DatePairsModal';
 
 interface Itinerary {
   id: string;
@@ -104,6 +104,14 @@ export function ItineraryGenerator() {
   const [error, setError] = useState<string | null>(null);
   const [pingStatus, setPingStatus] = useState<string | null>(null);
   const [directOnly, setDirectOnly] = useState(false);
+
+  // Date pairs modal state
+  const [datePairsModalOpen, setDatePairsModalOpen] = useState(false);
+  const [datePairsLoading, setDatePairsLoading] = useState(false);
+  const [datePairsCards, setDatePairsCards] = useState<DatePairCard[]>([]);
+  const [datePairsError, setDatePairsError] = useState<string | null>(null);
+  const [selectedDestination, setSelectedDestination] = useState<string>('');
+  const [selectedOrigin, setSelectedOrigin] = useState<string>('');
 
   const resetForm = () => {
     setAxisCard('');
@@ -206,6 +214,75 @@ export function ItineraryGenerator() {
       setPingStatus(data?.message || 'ok');
     } catch (err: any) {
       setPingStatus(err?.message || 'Ping failed');
+    }
+  };
+
+  /**
+   * Open the date pairs modal and fetch exact dates & stays
+   */
+  const handleSeeExactDates = async (itinerary: Itinerary) => {
+    // Use originCity from form state + destination from the itinerary
+    const origin = originCity; // form state
+    const dest = itinerary.destination || '';
+
+    // Use the travel month from form state
+    if (!travelMonth || !origin || !dest) {
+      return;
+    }
+
+    // Convert originCity name to airport code
+    const ORIGIN_CODE: Record<string, string> = {
+      Delhi: 'DEL',
+      Mumbai: 'BOM',
+      Bengaluru: 'BLR',
+      Hyderabad: 'HYD',
+      Chennai: 'MAA',
+    };
+    const originAirport = ORIGIN_CODE[origin] || origin;
+
+    // Parse month to get start/end dates
+    const monthDate = new Date(travelMonth);
+    const start = new Date(Date.UTC(monthDate.getUTCFullYear(), monthDate.getUTCMonth(), 1));
+    const end = new Date(Date.UTC(monthDate.getUTCFullYear(), monthDate.getUTCMonth() + 1, 0));
+    const startDate = start.toISOString().slice(0, 10);
+    const endDate = end.toISOString().slice(0, 10);
+
+    setSelectedOrigin(originAirport);
+    setSelectedDestination(dest);
+    setDatePairsCards([]);
+    setDatePairsError(null);
+    setDatePairsLoading(true);
+    setDatePairsModalOpen(true);
+
+    try {
+      const base = getApiBase();
+      const params = new URLSearchParams({
+        origin_airport: originAirport,
+        destination_airport: dest,
+        start_date: startDate,
+        end_date: endDate,
+        min_nights: '3',
+        max_nights: '10',
+        cabin_pref: cabinType?.toLowerCase() || 'economy',
+      });
+
+      const resp = await fetch(`${base}/api/seats/date-pairs?${params.toString()}`);
+      const data = await resp.json();
+
+      if (!resp.ok) {
+        throw new Error(data?.error || data?.message || 'Failed to fetch date pairs');
+      }
+
+      if (data?.message && (!data.cards || data.cards.length === 0)) {
+        setDatePairsError(data.message);
+        setDatePairsCards([]);
+      } else {
+        setDatePairsCards(data?.cards || []);
+      }
+    } catch (err: any) {
+      setDatePairsError(err?.message || 'Failed to load date pairs');
+    } finally {
+      setDatePairsLoading(false);
     }
   };
 
@@ -422,10 +499,13 @@ export function ItineraryGenerator() {
                             <div className="font-medium">
                               {itinerary.flight.pointsCost.toLocaleString()} points
                             </div>
-                            <Button variant="outline" size="sm" asChild className="w-full mt-2">
-                              <a href={itinerary.flight.bookingLink} target="_blank" rel="noopener noreferrer">
-                                Book Flight <ExternalLink className="ml-1 w-3 h-3" />
-                              </a>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="w-full mt-2"
+                              onClick={() => handleSeeExactDates(itinerary)}
+                            >
+                              See exact dates & stays
                             </Button>
                           </div>
                         </div>
@@ -477,6 +557,17 @@ export function ItineraryGenerator() {
           </div>
         ) : null}
       </CardContent>
+
+      {/* Date Pairs Modal */}
+      <DatePairsModal
+        open={datePairsModalOpen}
+        onOpenChange={setDatePairsModalOpen}
+        origin={selectedOrigin}
+        destination={selectedDestination}
+        loading={datePairsLoading}
+        cards={datePairsCards}
+        error={datePairsError}
+      />
     </Card>
   );
 }

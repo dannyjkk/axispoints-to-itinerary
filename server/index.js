@@ -2,6 +2,7 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import express from 'express';
 import { processFlowA, ping } from './flowAHandler.js';
+import { handleDatePairs, handleTrips } from './seatsHandlers.js';
 
 dotenv.config();
 
@@ -40,6 +41,8 @@ app.get('/health', sendHealth);
 app.get('/api/health', sendHealth);
 app.post('/flowA', handleGenerate); // legacy path
 app.post('/api/generate-itinerary', handleGenerate);
+app.get('/api/seats/date-pairs', handleDatePairs);
+app.get('/api/seats/trips', handleTrips);
 
 app.use((req, res) => {
   res.status(404).json({ error: 'Not found' });

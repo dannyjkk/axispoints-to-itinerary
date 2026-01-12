@@ -1,0 +1,302 @@
+import React from 'react';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from './ui/dialog';
+import { Badge } from './ui/badge';
+import { Skeleton } from './ui/skeleton';
+import { Plane, ArrowRight, Hotel, ExternalLink } from 'lucide-react';
+import { Button } from './ui/button';
+
+// Types for date pair cards
+export interface TripSummary {
+  origin: string;
+  destination: string;
+  departsAt: string;
+  arrivesAt: string;
+  stops: number | null;
+  carriers: string;
+  flightNumbers: string;
+  aircraft: string;
+  cabin: string;
+  remainingSeats: number | null;
+}
+
+export interface DatePairCard {
+  departDate: string;
+  returnDate: string;
+  nights: number;
+  cabin: string;
+  outboundTripSummary: TripSummary | null;
+  returnTripSummary: TripSummary | null;
+}
+
+// Stub hotel data for MVP
+interface HotelTile {
+  id: string;
+  name: string;
+  rating: string;
+  viewLink: string;
+}
+
+// Stub hotels fetch - replace with real API later (Amadeus/Accor)
+async function fetchHotels(_destination: string, _checkIn: string, _checkOut: string): Promise<HotelTile[]> {
+  // Simulated delay
+  await new Promise((r) => setTimeout(r, 800));
+  return [
+    { id: '1', name: 'City Center Hotel', rating: '4.5★', viewLink: '#' },
+    { id: '2', name: 'Business District Inn', rating: '4.2★', viewLink: '#' },
+    { id: '3', name: 'Airport Express Stay', rating: '3.9★', viewLink: '#' },
+  ];
+}
+
+interface DatePairsModalProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  origin: string;
+  destination: string;
+  loading: boolean;
+  cards: DatePairCard[];
+  error: string | null;
+}
+
+/**
+ * Format ISO date string to a more readable format
+ */
+function formatDate(isoStr: string): string {
+  if (!isoStr) return '';
+  // Parse as UTC and display date portion only
+  const d = new Date(isoStr);
+  return d.toLocaleDateString('en-US', {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+  });
+}
+
+/**
+ * Format ISO datetime to time in UTC
+ */
+function formatTimeUTC(isoStr: string): string {
+  if (!isoStr) return '';
+  // Extract just the time portion and show as UTC
+  const d = new Date(isoStr);
+  return d.toLocaleTimeString('en-US', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+    timeZone: 'UTC',
+  }) + ' UTC';
+}
+
+/**
+ * Flight summary line component
+ */
+function FlightLine({ trip, label }: { trip: TripSummary | null; label: string }) {
+  if (!trip) {
+    return (
+      <div className="text-sm text-muted-foreground">
+        {label}: No flight data available
+      </div>
+    );
+  }
+
+  const stopsText =
+    trip.stops === 0
+      ? 'Nonstop'
+      : trip.stops === 1
+        ? '1 stop'
+        : trip.stops !== null
+          ? `${trip.stops} stops`
+          : '';
+
+  return (
+    <div className="space-y-1">
+      <div className="text-xs text-muted-foreground font-medium">{label}</div>
+      <div className="flex items-center gap-2 text-sm">
+        <span className="font-semibold">
+          {trip.origin} <ArrowRight className="inline w-3 h-3" /> {trip.destination}
+        </span>
+      </div>
+      <div className="text-xs text-muted-foreground space-x-2">
+        <span>{formatTimeUTC(trip.departsAt)}</span>
+        <span>→</span>
+        <span>{formatTimeUTC(trip.arrivesAt)}</span>
+        {stopsText && <span className="ml-1">• {stopsText}</span>}
+      </div>
+      <div className="text-xs text-muted-foreground">
+        {trip.flightNumbers && <span>{trip.flightNumbers}</span>}
+        {trip.carriers && <span className="ml-1">({trip.carriers})</span>}
+        {trip.aircraft && <span className="ml-2">• {trip.aircraft}</span>}
+      </div>
+      {trip.remainingSeats !== null && trip.remainingSeats > 0 && (
+        <div className="text-xs text-orange-600">
+          {trip.remainingSeats} seat{trip.remainingSeats > 1 ? 's' : ''} left
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Single date pair card component
+ */
+function DatePairCardView({ card, destination }: { card: DatePairCard; destination: string }) {
+  const [hotels, setHotels] = React.useState<HotelTile[]>([]);
+  const [hotelsLoading, setHotelsLoading] = React.useState(true);
+
+  React.useEffect(() => {
+    setHotelsLoading(true);
+    fetchHotels(destination, card.departDate, card.returnDate)
+      .then(setHotels)
+      .finally(() => setHotelsLoading(false));
+  }, [card.departDate, card.returnDate, destination]);
+
+  return (
+    <div className="border rounded-lg p-4 space-y-4">
+      {/* Date header */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Plane className="w-4 h-4 text-primary" />
+          <span className="font-semibold">
+            {formatDate(card.departDate)} → {formatDate(card.returnDate)}
+          </span>
+          <span className="text-sm text-muted-foreground">
+            ({card.nights} night{card.nights !== 1 ? 's' : ''})
+          </span>
+        </div>
+        <Badge variant={card.cabin === 'business' ? 'default' : 'secondary'}>
+          {card.cabin === 'business' ? 'Business' : 'Economy'}
+        </Badge>
+      </div>
+
+      {/* Flight details */}
+      <div className="grid gap-3 md:grid-cols-2">
+        <FlightLine trip={card.outboundTripSummary} label="Outbound" />
+        <FlightLine trip={card.returnTripSummary} label="Return" />
+      </div>
+
+      {/* Hotel tiles placeholder */}
+      <div className="border-t pt-3 mt-3">
+        <div className="flex items-center gap-2 mb-2">
+          <Hotel className="w-4 h-4 text-muted-foreground" />
+          <span className="text-sm font-medium text-muted-foreground">Hotels</span>
+        </div>
+        <div className="grid gap-2 grid-cols-3">
+          {hotelsLoading ? (
+            <>
+              <Skeleton className="h-16 w-full" />
+              <Skeleton className="h-16 w-full" />
+              <Skeleton className="h-16 w-full" />
+            </>
+          ) : (
+            hotels.map((hotel) => (
+              <div
+                key={hotel.id}
+                className="border rounded p-2 text-xs space-y-1 bg-muted/30"
+              >
+                <div className="font-medium truncate">{hotel.name}</div>
+                <div className="text-muted-foreground">{hotel.rating}</div>
+                <Button variant="ghost" size="sm" className="h-6 px-2 text-xs" asChild>
+                  <a href={hotel.viewLink} target="_blank" rel="noopener noreferrer">
+                    View <ExternalLink className="ml-1 w-3 h-3" />
+                  </a>
+                </Button>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Loading skeleton for cards
+ */
+function LoadingSkeleton() {
+  return (
+    <div className="space-y-4">
+      {[1, 2, 3].map((i) => (
+        <div key={i} className="border rounded-lg p-4 space-y-4">
+          <div className="flex items-center justify-between">
+            <Skeleton className="h-5 w-48" />
+            <Skeleton className="h-5 w-20" />
+          </div>
+          <div className="grid gap-3 md:grid-cols-2">
+            <div className="space-y-2">
+              <Skeleton className="h-4 w-16" />
+              <Skeleton className="h-4 w-32" />
+              <Skeleton className="h-3 w-40" />
+            </div>
+            <div className="space-y-2">
+              <Skeleton className="h-4 w-16" />
+              <Skeleton className="h-4 w-32" />
+              <Skeleton className="h-3 w-40" />
+            </div>
+          </div>
+          <div className="border-t pt-3 mt-3">
+            <Skeleton className="h-4 w-20 mb-2" />
+            <div className="grid gap-2 grid-cols-3">
+              <Skeleton className="h-16 w-full" />
+              <Skeleton className="h-16 w-full" />
+              <Skeleton className="h-16 w-full" />
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+export function DatePairsModal({
+  open,
+  onOpenChange,
+  origin,
+  destination,
+  loading,
+  cards,
+  error,
+}: DatePairsModalProps) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Plane className="w-5 h-5" />
+            Exact Dates & Stays
+          </DialogTitle>
+          <DialogDescription>
+            {origin} → {destination} • 3–10 nights
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="mt-4 space-y-4">
+          {loading && <LoadingSkeleton />}
+
+          {!loading && error && (
+            <div className="p-4 rounded-md bg-destructive/10 text-destructive text-sm">
+              {error}
+            </div>
+          )}
+
+          {!loading && !error && cards.length === 0 && (
+            <div className="p-4 rounded-md bg-muted text-center text-muted-foreground">
+              No date pairs found for 3–10 nights in this month.
+            </div>
+          )}
+
+          {!loading &&
+            !error &&
+            cards.map((card, idx) => (
+              <DatePairCardView key={idx} card={card} destination={destination} />
+            ))}
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
