@@ -189,24 +189,24 @@ function DatePairCardView({ card, destination, tripSummary, tripSummaryLoading }
   }, [card.departDate, card.returnDate, destination]);
 
   return (
-    <div className="border rounded-lg p-4 space-y-4">
+    <div className="border rounded-lg p-3 sm:p-4 space-y-3 sm:space-y-4">
       {/* Date header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Plane className="w-4 h-4 text-primary" />
-          <span className="font-semibold">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <Plane className="w-4 h-4 text-primary flex-shrink-0" />
+          <span className="font-semibold text-sm sm:text-base">
             {formatDate(card.departDate)} → {formatDate(card.returnDate)}
           </span>
-          <span className="text-sm text-muted-foreground">
+          <span className="text-xs sm:text-sm text-muted-foreground">
             ({card.nights} night{card.nights !== 1 ? 's' : ''})
           </span>
         </div>
-        <div className="flex items-center gap-2">
-          <Badge variant={card.cabin === 'business' ? 'default' : 'secondary'}>
+        <div className="flex items-center gap-2 flex-wrap">
+          <Badge variant={card.cabin === 'business' ? 'default' : 'secondary'} className="text-xs">
             {card.cabin === 'business' ? 'Business' : 'Economy'}
           </Badge>
           {card.totalPoints > 0 && (
-            <Badge variant="default" className="bg-primary">
+            <Badge variant="default" className="bg-primary text-xs">
               Total: {card.totalPoints.toLocaleString()} pts
             </Badge>
           )}
@@ -223,14 +223,14 @@ function DatePairCardView({ card, destination, tripSummary, tripSummaryLoading }
       <div className="border-t pt-3 mt-3">
         <div className="flex items-center gap-2 mb-2">
           <Hotel className="w-4 h-4 text-muted-foreground" />
-          <span className="text-sm font-medium text-muted-foreground">Hotels (Placeholder - WIP)</span>
+          <span className="text-xs sm:text-sm font-medium text-muted-foreground">Hotels (Placeholder - WIP)</span>
         </div>
-        <div className="grid gap-2 grid-cols-3">
+        <div className="grid gap-2 grid-cols-1 sm:grid-cols-3">
           {hotelsLoading ? (
             <>
               <Skeleton className="h-16 w-full" />
-              <Skeleton className="h-16 w-full" />
-              <Skeleton className="h-16 w-full" />
+              <Skeleton className="h-16 w-full hidden sm:block" />
+              <Skeleton className="h-16 w-full hidden sm:block" />
             </>
           ) : (
             hotels.map((hotel) => (
@@ -292,29 +292,29 @@ function LoadingSkeleton() {
   return (
     <div className="space-y-4">
       {[1, 2, 3].map((i) => (
-        <div key={i} className="border rounded-lg p-4 space-y-4">
-          <div className="flex items-center justify-between">
-            <Skeleton className="h-5 w-48" />
-            <Skeleton className="h-5 w-20" />
+        <div key={i} className="border rounded-lg p-3 sm:p-4 space-y-3 sm:space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+            <Skeleton className="h-5 w-40 sm:w-48" />
+            <Skeleton className="h-5 w-24 sm:w-32" />
           </div>
-          <div className="grid gap-3 md:grid-cols-2">
+          <div className="grid gap-3 sm:grid-cols-2">
             <div className="space-y-2">
               <Skeleton className="h-4 w-16" />
-              <Skeleton className="h-4 w-32" />
-              <Skeleton className="h-3 w-40" />
+              <Skeleton className="h-4 w-full sm:w-32" />
+              <Skeleton className="h-3 w-3/4 sm:w-40" />
             </div>
             <div className="space-y-2">
               <Skeleton className="h-4 w-16" />
-              <Skeleton className="h-4 w-32" />
-              <Skeleton className="h-3 w-40" />
+              <Skeleton className="h-4 w-full sm:w-32" />
+              <Skeleton className="h-3 w-3/4 sm:w-40" />
             </div>
           </div>
           <div className="border-t pt-3 mt-3">
             <Skeleton className="h-4 w-20 mb-2" />
-            <div className="grid gap-2 grid-cols-3">
+            <div className="grid gap-2 grid-cols-1 sm:grid-cols-3">
               <Skeleton className="h-16 w-full" />
-              <Skeleton className="h-16 w-full" />
-              <Skeleton className="h-16 w-full" />
+              <Skeleton className="h-16 w-full hidden sm:block" />
+              <Skeleton className="h-16 w-full hidden sm:block" />
             </div>
           </div>
         </div>
@@ -414,7 +414,7 @@ export function DatePairsModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+      <DialogContent className="w-[95vw] max-w-2xl max-h-[85vh] overflow-y-auto p-4 sm:p-6">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Plane className="w-5 h-5" />

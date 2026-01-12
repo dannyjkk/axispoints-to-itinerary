@@ -327,7 +327,7 @@ export function ItineraryGenerator() {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <div className="space-y-2">
             <Label htmlFor="axis-card">
               <CreditCard className="inline w-4 h-4 mr-1" />
@@ -470,11 +470,11 @@ export function ItineraryGenerator() {
 
         {itineraries.length > 0 ? (
           <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <span className="text-lg">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <span className="text-base sm:text-lg">
                 Found {new Set(itineraries.map((i) => i.destinationAirport || i.destination)).size} destination{new Set(itineraries.map((i) => i.destinationAirport || i.destination)).size !== 1 ? 's' : ''}!
               </span>
-              <Button variant="outline" onClick={resetForm}>
+              <Button variant="outline" size="sm" onClick={resetForm}>
                 Try New Search
               </Button>
             </div>
@@ -489,9 +489,9 @@ export function ItineraryGenerator() {
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="pt-0">
-                    <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 bg-muted rounded-lg">
                       <div className="flex items-center gap-3">
-                        <Plane className="w-4 h-4 text-primary" />
+                        <Plane className="w-4 h-4 text-primary flex-shrink-0" />
                         <span className="text-sm font-medium">
                           {itinerary.flight?.airline || 'Flight Available'}
                         </span>
@@ -499,6 +499,7 @@ export function ItineraryGenerator() {
                       <Button
                         variant="default"
                         size="sm"
+                        className="w-full sm:w-auto"
                         onClick={() => handleSeeExactDates(itinerary)}
                       >
                         See exact dates & stays

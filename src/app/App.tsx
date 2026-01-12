@@ -19,16 +19,16 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
-      <div className="container mx-auto px-4 py-8 max-w-6xl">
+      <div className="container mx-auto px-3 sm:px-4 py-4 sm:py-8 max-w-6xl">
         {/* Header */}
-        <div className="text-center mb-8 space-y-4">
-          <div className="flex items-center justify-center gap-3">
-            <Plane className="w-10 h-10 text-blue-600" />
-            <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+        <div className="text-center mb-6 sm:mb-8 space-y-3 sm:space-y-4">
+          <div className="flex items-center justify-center gap-2 sm:gap-3">
+            <Plane className="w-8 h-8 sm:w-10 sm:h-10 text-blue-600" />
+            <h1 className="text-2xl sm:text-4xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
               Points Travel Planner
             </h1>
           </div>
-          <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
+          <p className="text-base sm:text-lg text-muted-foreground max-w-2xl mx-auto px-2">
             Maximize your credit card points and plan your dream
             vacation
           </p>
@@ -53,11 +53,11 @@ export default function App() {
           onValueChange={setActiveTab}
           className="space-y-6"
         >
-          <TabsList className="grid w-full grid-cols-2 max-w-md mx-auto">
-            <TabsTrigger value="generate">
+          <TabsList className="grid w-full grid-cols-2 max-w-md mx-auto h-auto">
+            <TabsTrigger value="generate" className="text-xs sm:text-sm py-2">
               Generate Itineraries
             </TabsTrigger>
-            <TabsTrigger value="calculate">
+            <TabsTrigger value="calculate" className="text-xs sm:text-sm py-2">
               Calculate Points (Placeholder)
             </TabsTrigger>
           </TabsList>
