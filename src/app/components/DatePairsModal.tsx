@@ -23,6 +23,9 @@ export interface TripSummary {
   aircraft: string;
   cabin: string;
   remainingSeats: number | null;
+  source: string;
+  programName: string;
+  mileageCost: number | null;
 }
 
 export interface DatePairCard {
@@ -32,6 +35,7 @@ export interface DatePairCard {
   cabin: string;
   outboundTripSummary: TripSummary | null;
   returnTripSummary: TripSummary | null;
+  totalPoints: number;
 }
 
 // Stub hotel data for MVP
@@ -93,6 +97,14 @@ function formatTimeUTC(isoStr: string): string {
 }
 
 /**
+ * Format points with commas
+ */
+function formatPoints(points: number | null): string {
+  if (points === null || points === 0) return '—';
+  return points.toLocaleString() + ' pts';
+}
+
+/**
  * Flight summary line component
  */
 function FlightLine({ trip, label }: { trip: TripSummary | null; label: string }) {
@@ -115,7 +127,14 @@ function FlightLine({ trip, label }: { trip: TripSummary | null; label: string }
 
   return (
     <div className="space-y-1">
-      <div className="text-xs text-muted-foreground font-medium">{label}</div>
+      <div className="flex items-center justify-between">
+        <div className="text-xs text-muted-foreground font-medium">{label}</div>
+        {trip.mileageCost !== null && trip.mileageCost > 0 && (
+          <Badge variant="outline" className="text-xs font-semibold">
+            {formatPoints(trip.mileageCost)}
+          </Badge>
+        )}
+      </div>
       <div className="flex items-center gap-2 text-sm">
         <span className="font-semibold">
           {trip.origin} <ArrowRight className="inline w-3 h-3" /> {trip.destination}
@@ -132,6 +151,12 @@ function FlightLine({ trip, label }: { trip: TripSummary | null; label: string }
         {trip.carriers && <span className="ml-1">({trip.carriers})</span>}
         {trip.aircraft && <span className="ml-2">• {trip.aircraft}</span>}
       </div>
+      {/* Program name */}
+      {trip.programName && (
+        <div className="text-xs font-medium text-primary">
+          via {trip.programName}
+        </div>
+      )}
       {trip.remainingSeats !== null && trip.remainingSeats > 0 && (
         <div className="text-xs text-orange-600">
           {trip.remainingSeats} seat{trip.remainingSeats > 1 ? 's' : ''} left
@@ -168,9 +193,16 @@ function DatePairCardView({ card, destination }: { card: DatePairCard; destinati
             ({card.nights} night{card.nights !== 1 ? 's' : ''})
           </span>
         </div>
-        <Badge variant={card.cabin === 'business' ? 'default' : 'secondary'}>
-          {card.cabin === 'business' ? 'Business' : 'Economy'}
-        </Badge>
+        <div className="flex items-center gap-2">
+          <Badge variant={card.cabin === 'business' ? 'default' : 'secondary'}>
+            {card.cabin === 'business' ? 'Business' : 'Economy'}
+          </Badge>
+          {card.totalPoints > 0 && (
+            <Badge variant="default" className="bg-primary">
+              Total: {card.totalPoints.toLocaleString()} pts
+            </Badge>
+          )}
+        </div>
       </div>
 
       {/* Flight details */}

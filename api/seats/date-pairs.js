@@ -16,6 +16,16 @@
 const SEATS_API_KEY = process.env.SEATS_API_KEY || '';
 
 /**
+ * Map source codes to human-readable program names
+ */
+const PROGRAM_NAMES = {
+  united: 'United MileagePlus',
+  aeroplan: 'Air Canada Aeroplan',
+  flyingblue: 'Air France–KLM Flying Blue',
+  singapore: 'Singapore Airlines KrisFlyer',
+};
+
+/**
  * Helper: add days to a date string (YYYY-MM-DD)
  */
 function addDays(dateStr, days) {
@@ -135,6 +145,7 @@ function pickBestTrip(trips, cabin) {
  */
 function extractTripSummary(trip) {
   if (!trip) return null;
+  const sourceCode = trip.Source || '';
   return {
     origin: trip.OriginAirport || '',
     destination: trip.DestinationAirport || '',
@@ -146,6 +157,9 @@ function extractTripSummary(trip) {
     aircraft: Array.isArray(trip.Aircraft) ? trip.Aircraft[0] || '' : '',
     cabin: trip.Cabin || '',
     remainingSeats: typeof trip.RemainingSeats === 'number' ? trip.RemainingSeats : null,
+    source: sourceCode,
+    programName: PROGRAM_NAMES[sourceCode] || sourceCode,
+    mileageCost: typeof trip.MileageCost === 'number' ? trip.MileageCost : null,
   };
 }
 
@@ -324,13 +338,22 @@ export default async function handler(req, res) {
 
         const nights = nightsBetween(pair.departDate, pair.returnDate);
 
+        const outboundSummary = extractTripSummary(bestOutbound);
+        const returnSummary = extractTripSummary(bestReturn);
+
+        // Calculate total points (sum of both legs)
+        const outboundPoints = outboundSummary?.mileageCost || 0;
+        const returnPoints = returnSummary?.mileageCost || 0;
+        const totalPoints = outboundPoints + returnPoints;
+
         return {
           departDate: pair.departDate,
           returnDate: pair.returnDate,
           nights,
           cabin: pair.chosenCabin,
-          outboundTripSummary: extractTripSummary(bestOutbound),
-          returnTripSummary: extractTripSummary(bestReturn),
+          outboundTripSummary: outboundSummary,
+          returnTripSummary: returnSummary,
+          totalPoints,
         };
       })
     );
