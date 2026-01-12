@@ -98,11 +98,23 @@ These are **deliberate product decisions** to keep the MVP focused on:
 ---
 
 ## 🛠️ Tech Stack
-
 - Frontend: React + Vite
 - Backend: Node.js + Express
 - Data: Seats.aero cached award availability
 - Config: dotenv (API keys never committed)
+
+---
+
+## 🔧 Local Dev & API Base
+- Backend: run `npm run server` (defaults to `PORT=3001`).
+- Frontend: run `npm run dev -- --host`; it resolves the API base in this order:
+  - `VITE_API_URL` or `VITE_API_BASE` (if provided).
+  - `http://localhost:3001` when on localhost.
+  - same-origin otherwise (for hosted/serverless cases).
+- Example env (frontend vars must start with `VITE_`):
+  - `VITE_API_BASE=http://localhost:3001`
+  - `SEATS_API_KEY=...`
+  - `OPENAI_API_KEY=...`
 
 ---
 

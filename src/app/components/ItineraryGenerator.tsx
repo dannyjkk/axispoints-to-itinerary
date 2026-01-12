@@ -7,6 +7,7 @@ import { Button } from './ui/button';
 import { Badge } from './ui/badge';
 import { ExternalLink, MapPin, Calendar, Hotel, Plane, CreditCard, Info } from 'lucide-react';
 import { Alert, AlertDescription } from './ui/alert';
+import { getApiBase } from '../lib/api';
 
 interface Itinerary {
   id: string;
@@ -135,7 +136,7 @@ export function ItineraryGenerator() {
         onlyDirect: directOnly,
       };
 
-      const resp = await fetch('http://localhost:3001/flowA', {
+      const resp = await fetch(`${getApiBase()}/flowA`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
