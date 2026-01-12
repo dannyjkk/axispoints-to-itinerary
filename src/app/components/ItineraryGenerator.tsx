@@ -437,7 +437,9 @@ export function ItineraryGenerator() {
         {itineraries.length > 0 ? (
           <div className="space-y-4">
             <div className="flex items-center justify-between">
-              <span className="text-lg">Found {itineraries.length} trip(s) within your points budget</span>
+              <span className="text-lg">
+                Found {new Set(itineraries.map((i) => i.destinationAirport || i.destination)).size} destination{new Set(itineraries.map((i) => i.destinationAirport || i.destination)).size !== 1 ? 's' : ''}!
+              </span>
               <Button variant="outline" onClick={resetForm}>
                 Try New Search
               </Button>

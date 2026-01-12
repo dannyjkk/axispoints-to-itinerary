@@ -333,8 +333,19 @@ export function DatePairsModal({
   error,
 }: DatePairsModalProps) {
   // Trip summaries by duration (nights): Map<nights, string[]>
+  // Keyed by nights only since we reset when destination changes
   const [tripSummaries, setTripSummaries] = React.useState<Map<number, string[]>>(new Map());
   const [summariesLoading, setSummariesLoading] = React.useState<Set<number>>(new Set());
+  const [currentDestination, setCurrentDestination] = React.useState<string>('');
+
+  // Reset summaries when destination changes (fixes wrong itinerary bug)
+  React.useEffect(() => {
+    if (destination && destination !== currentDestination) {
+      setTripSummaries(new Map());
+      setSummariesLoading(new Set());
+      setCurrentDestination(destination);
+    }
+  }, [destination, currentDestination]);
 
   // Fetch trip summaries for unique durations when cards change
   React.useEffect(() => {
@@ -397,6 +408,7 @@ export function DatePairsModal({
     if (!open) {
       setTripSummaries(new Map());
       setSummariesLoading(new Set());
+      setCurrentDestination('');
     }
   }, [open]);
 
