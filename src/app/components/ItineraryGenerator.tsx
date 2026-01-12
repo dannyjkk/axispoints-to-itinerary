@@ -7,6 +7,7 @@ import { Button } from './ui/button';
 import { Badge } from './ui/badge';
 import { ExternalLink, MapPin, Calendar, Hotel, Plane, CreditCard, Info } from 'lucide-react';
 import { Alert, AlertDescription } from './ui/alert';
+import { getApiBase } from '../lib/api';
 
 interface Itinerary {
   id: string;
@@ -102,6 +103,7 @@ export function ItineraryGenerator() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [directOnly, setDirectOnly] = useState(false);
+  const [pingStatus, setPingStatus] = useState<string | null>(null);
 
   const resetForm = () => {
     setAxisCard('');
@@ -135,7 +137,8 @@ export function ItineraryGenerator() {
         onlyDirect: directOnly,
       };
 
-      const resp = await fetch('http://localhost:3001/flowA', {
+      const base = getApiBase();
+      const resp = await fetch(`${base}/api/generate-itinerary`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -191,11 +194,34 @@ export function ItineraryGenerator() {
     }
   };
 
+  const handlePing = async () => {
+    try {
+      setPingStatus('Checking...');
+      const base = getApiBase();
+      const resp = await fetch(`${base}/api/ping`, { method: 'GET' });
+      const data = await resp.json().catch(() => ({}));
+      if (!resp.ok) {
+        throw new Error(data?.error || 'Ping failed');
+      }
+      setPingStatus(data?.message || 'ok');
+    } catch (err: any) {
+      setPingStatus(err?.message || 'Ping failed');
+    }
+  };
+
   return (
     <Card>
       <CardHeader>
         <CardTitle>Generate Itineraries</CardTitle>
-        <CardDescription>Tell us your Axis Bank card and available points to find trips</CardDescription>
+        <CardDescription className="flex flex-col gap-2">
+          <span>Tell us your Axis Bank card and available points to find trips</span>
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <Button variant="outline" size="sm" onClick={handlePing}>
+              Ping API
+            </Button>
+            {pingStatus && <span>{pingStatus}</span>}
+          </div>
+        </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
