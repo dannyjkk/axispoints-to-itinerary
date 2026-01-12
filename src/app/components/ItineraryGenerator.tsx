@@ -90,9 +90,38 @@ function dedupeOptions(options: any[]) {
   return Array.from(seen.values());
 }
 
+/**
+ * Format a number in Indian numbering system (lakhs, crores)
+ * e.g., 1000000 -> "10,00,000"
+ */
+function formatIndianNumber(value: string | number): string {
+  const num = typeof value === 'string' ? value.replace(/,/g, '') : String(value);
+  if (!num || isNaN(Number(num))) return '';
+  
+  const parts = num.split('.');
+  let intPart = parts[0];
+  
+  // Indian format: first 3 digits from right, then groups of 2
+  if (intPart.length > 3) {
+    const lastThree = intPart.slice(-3);
+    const remaining = intPart.slice(0, -3);
+    const formatted = remaining.replace(/\B(?=(\d{2})+(?!\d))/g, ',');
+    intPart = formatted + ',' + lastThree;
+  }
+  
+  return parts.length > 1 ? intPart + '.' + parts[1] : intPart;
+}
+
+/**
+ * Parse Indian formatted number to raw number string
+ */
+function parseIndianNumber(value: string): string {
+  return value.replace(/,/g, '');
+}
+
 export function ItineraryGenerator() {
   const [axisCard, setAxisCard] = useState('');
-  const [availablePoints, setAvailablePoints] = useState('');
+  const [availablePoints, setAvailablePoints] = useState(''); // Raw number without commas
   const [travelMonth, setTravelMonth] = useState('');
   const [cabinType, setCabinType] = useState('');
   const [originCity, setOriginCity] = useState('');
@@ -322,11 +351,17 @@ export function ItineraryGenerator() {
             <Label htmlFor="points">Available Edge Reward Points</Label>
             <Input
               id="points"
-              type="number"
-              placeholder="e.g., 250000"
-              value={availablePoints}
-              onChange={(e) => setAvailablePoints(e.target.value)}
-              min="0"
+              type="text"
+              inputMode="numeric"
+              placeholder="e.g., 2,50,000"
+              value={formatIndianNumber(availablePoints)}
+              onChange={(e) => {
+                const raw = parseIndianNumber(e.target.value);
+                // Only allow digits
+                if (/^\d*$/.test(raw)) {
+                  setAvailablePoints(raw);
+                }
+              }}
             />
           </div>
 
