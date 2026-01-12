@@ -35,8 +35,8 @@ const PROGRAM_CAPABILITY = {
 const ALLOWED_SOURCES = Object.keys(PROGRAM_CAPABILITY);
 
 let openaiClient = null;
-const summaryCache = new Map(); // key: dest|days -> string[]
-const summaryInFlight = new Map(); // key: dest|days -> Promise<string[]>
+const summaryCache = new Map(); // key: destination -> string[]
+const summaryInFlight = new Map(); // key: destination -> Promise<string[]>
 const DEFAULT_SUMMARY = ['Explore the city at your own pace'];
 
 function getOpenAIClient() {
@@ -47,8 +47,8 @@ function getOpenAIClient() {
   return openaiClient;
 }
 
-async function generateTripSummary(destinationName, days) {
-  const key = `${destinationName || 'unknown'}|${days || 0}`;
+async function generateTripSummary(destinationName) {
+  const key = destinationName || 'unknown';
   if (summaryCache.has(key)) return summaryCache.get(key);
 
   if (summaryInFlight.has(key)) return summaryInFlight.get(key);
@@ -57,13 +57,11 @@ async function generateTripSummary(destinationName, days) {
     const client = getOpenAIClient();
     if (!client) return DEFAULT_SUMMARY;
 
-    const safeDays = Math.max(1, Math.min(Number(days) || 1, 30));
     const prompt = `
 You are generating a concise trip summary for a generic sightseeing, first-time visit.
 Destination: ${destinationName || 'unknown'}
-Duration: ${safeDays} day(s)
 
-Return a JSON array of 3-5 short bullet strings (one sentence each), max 5 bullets, no numbering, no emojis, no specific hotels or bookings. If duration < 5, reduce bullets accordingly. Focus on realistic day-by-day flow (arrival, central landmarks, culture/food, optional day trip, departure).`;
+Return a JSON array of exactly 5 short bullet strings (one sentence each). No numbering, no emojis, no specific hotels or bookings. Focus on realistic day-by-day flow (arrival, central landmarks, culture/food, optional day trip, departure).`;
 
     try {
       const resp = await client.chat.completions.create({
@@ -88,7 +86,6 @@ Return a JSON array of 3-5 short bullet strings (one sentence each), max 5 bulle
       const usedFallback = finalSummary.length === 1 && finalSummary[0] === DEFAULT_SUMMARY[0];
       console.log('[TripSummaryGenerated]', {
         destinationCity: destinationName || 'unknown',
-        durationDays: safeDays,
         usedFallback,
       });
       return finalSummary;
@@ -167,7 +164,6 @@ export async function processFlowA(body = {}) {
     cabin,
     cardDisplayName,
     onlyDirect,
-    tripDuration,
   } = body;
 
   if (
@@ -369,7 +365,7 @@ export async function processFlowA(body = {}) {
     if (summaryPromiseByDestination.has(key)) {
       return summaryPromiseByDestination.get(key);
     }
-    const promise = generateTripSummary(key, tripDuration)
+    const promise = generateTripSummary(key)
       .then((result) => {
         // Replace stored promise with a resolved one to avoid holding onto a long chain
         summaryPromiseByDestination.set(key, Promise.resolve(result));

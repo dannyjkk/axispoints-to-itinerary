@@ -14,7 +14,6 @@ interface Itinerary {
   destination: string | null;
   destinationName?: string | null;
   destinationAirport?: string | null; // IATA code for API calls
-  duration: number;
   hotelStarRating: 4 | 5;
   stops?: number | null;
   tripSummary?: string[];
@@ -96,7 +95,6 @@ export function ItineraryGenerator() {
   const [axisCard, setAxisCard] = useState('');
   const [availablePoints, setAvailablePoints] = useState('');
   const [travelMonth, setTravelMonth] = useState('');
-  const [tripDuration, setTripDuration] = useState('');
   const [cabinType, setCabinType] = useState('');
   const [originCity, setOriginCity] = useState('');
   const [destinationCity, setDestinationCity] = useState('');
@@ -118,7 +116,6 @@ export function ItineraryGenerator() {
     setAxisCard('');
     setAvailablePoints('');
     setTravelMonth('');
-    setTripDuration('');
     setCabinType('');
     setOriginCity('');
     setDestinationCity('');
@@ -128,7 +125,7 @@ export function ItineraryGenerator() {
   };
 
   const generateItineraries = async () => {
-    if (!axisCard || !availablePoints || !travelMonth || !tripDuration || !cabinType || !originCity || !destinationCity) return;
+    if (!axisCard || !availablePoints || !travelMonth || !cabinType || !originCity || !destinationCity) return;
 
     setLoading(true);
     setError(null);
@@ -140,7 +137,6 @@ export function ItineraryGenerator() {
         origin: originCity,
         destination: destinationCity,
         travelMonth,
-        tripDuration,
         cabin: cabinType,
         cardDisplayName: AXIS_BANK_CARDS.find((c) => c.id === axisCard)?.name || axisCard,
         onlyDirect: directOnly,
@@ -169,7 +165,6 @@ export function ItineraryGenerator() {
         destination: o.destinationName || o.destination || null,
         destinationName: o.destinationName || null,
         destinationAirport: o.destination || null, // Keep airport code for API calls
-        duration: 5,
         hotelStarRating: 4,
         stops: typeof o.stops === 'number' ? o.stops : null,
         flight: {
@@ -356,20 +351,6 @@ export function ItineraryGenerator() {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="trip-duration">
-              Trip Duration (days)
-            </Label>
-            <Input
-              id="trip-duration"
-              type="number"
-              min="1"
-              placeholder="e.g., 5"
-              value={tripDuration}
-              onChange={(e) => setTripDuration(e.target.value)}
-            />
-          </div>
-
-          <div className="space-y-2">
             <Label htmlFor="cabin-type">
               <Plane className="inline w-4 h-4 mr-1" />
               Cabin Type
@@ -474,7 +455,7 @@ export function ItineraryGenerator() {
                         </CardTitle>
                         <CardDescription>
                           <Calendar className="inline w-3 h-3 mr-1" />
-                          {itinerary.duration} days • {itinerary.hotelStarRating}-Star Hotel
+                          {itinerary.hotelStarRating}-Star Hotel
                         </CardDescription>
                       </div>
                       <div className="flex items-center gap-2">
