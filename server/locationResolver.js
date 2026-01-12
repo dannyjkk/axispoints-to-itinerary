@@ -73,9 +73,9 @@ AIRPORT COUNT RULES
   → return 1 to 3 airports
 
 - If input is a REGION or AMBIGUOUS REGION:
-  → return EXACTLY 5 airports
+  → return at max 10 airports
 
-- NEVER return more than 5 airports.
+- NEVER return more than 10 airports.
 
 ========================
 AIRPORT SELECTION RULES

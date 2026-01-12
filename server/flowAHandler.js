@@ -313,6 +313,54 @@ export async function processFlowA(body = {}) {
     .filter(Boolean)
     .sort((a, b) => a.edgePointsRequired - b.edgePointsRequired);
 
+  // Deduplicate: max 2 per destination (cheapest + cheapest non-stop if different)
+  // Group by destination
+  const byDest = new Map();
+  for (const item of mapped) {
+    const key = item.destinationName || item.destination || 'unknown';
+    if (!byDest.has(key)) byDest.set(key, []);
+    byDest.get(key).push(item);
+  }
+
+  // For each destination, pick: cheapest + cheapest non-stop (if different)
+  const destGroups = [];
+  for (const [destKey, items] of byDest) {
+    // Items are already sorted by points, so first is cheapest
+    const cheapest = items[0];
+    const cheapestNonstop = items.find((i) => i.stops === 0);
+
+    const selected = [];
+    if (cheapest.stops === 0) {
+      // Cheapest is already non-stop, show only that
+      selected.push(cheapest);
+    } else if (cheapestNonstop) {
+      // Cheapest has stops, but non-stop exists - show both
+      selected.push(cheapest, cheapestNonstop);
+    } else {
+      // No non-stop exists, show only cheapest
+      selected.push(cheapest);
+    }
+
+    destGroups.push({
+      destKey,
+      cheapestPoints: cheapest.edgePointsRequired,
+      items: selected,
+    });
+  }
+
+  // Sort destination groups by their cheapest option
+  destGroups.sort((a, b) => a.cheapestPoints - b.cheapestPoints);
+
+  // Flatten groups (keeping same-destination items together) and cap at 10
+  const deduplicated = [];
+  for (const group of destGroups) {
+    for (const item of group.items) {
+      if (deduplicated.length >= 10) break;
+      deduplicated.push(item);
+    }
+    if (deduplicated.length >= 10) break;
+  }
+
   // Deduplicate trip summary generation per destination within a single request.
   // Without this, parallel Promise.all calls would all miss the cache and spam the LLM.
   const summaryPromiseByDestination = new Map();
@@ -337,7 +385,7 @@ export async function processFlowA(body = {}) {
   };
 
   const enriched = await Promise.all(
-    mapped.map(async (item) => {
+    deduplicated.map(async (item) => {
       const summary = await getSummaryForDestination(item.destinationName || item.destination);
       return {
         ...item,
