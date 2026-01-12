@@ -107,14 +107,20 @@ These are **deliberate product decisions** to keep the MVP focused on:
 
 ## 🔧 Local Dev & API Base
 - Backend: run `npm run server` (defaults to `PORT=3001`).
-- Frontend: run `npm run dev -- --host`; it resolves the API base in this order:
-  - `VITE_API_URL` or `VITE_API_BASE` (if provided).
-  - `http://localhost:3001` when on localhost.
-  - same-origin otherwise (for hosted/serverless cases).
-- Example env (frontend vars must start with `VITE_`):
-  - `VITE_API_BASE=http://localhost:3001`
+- Frontend: run `npm run dev -- --host`; API base resolution order:
+  1) `VITE_API_URL` or `VITE_API_BASE` (strip trailing slash)
+  2) If `import.meta.env.DEV`: `http://localhost:3001`
+  3) Otherwise: same-origin (for hosted/serverless)
+- Optional Vite proxy (dev): `vite.config.ts` proxies `/api` to `http://localhost:3001`.
+- Example `.env.development` (not committed):
+  - `VITE_API_URL=http://localhost:3001`
   - `SEATS_API_KEY=...`
   - `OPENAI_API_KEY=...`
+- Local test options:
+  - Option A: `PORT=3001 npm run server` and `VITE_API_URL=http://localhost:3001 npm run dev`
+  - Option B: ensure proxy present, run backend on :3001, then `npm run dev`
+- Production: set `VITE_API_URL=https://your-backend.example.com` in Vercel (Production & Preview).
+- Smoke test: open app, run generate, check Network tab calls `/api/generate-itinerary` to the expected domain and gets 200.
 
 ---
 

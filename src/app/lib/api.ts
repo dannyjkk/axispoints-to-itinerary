@@ -1,16 +1,13 @@
 export function getApiBase() {
-  const envBase = (import.meta as any)?.env?.VITE_API_URL || (import.meta as any)?.env?.VITE_API_BASE;
-  if (envBase) return String(envBase).replace(/\/$/, '');
+  const env = (import.meta as any)?.env || {};
+  const explicit = env.VITE_API_URL || env.VITE_API_BASE;
+  if (explicit) return String(explicit).replace(/\/$/, '');
 
-  if (typeof window !== 'undefined') {
-    const { hostname, origin } = window.location;
-    if (hostname === 'localhost' || hostname === '127.0.0.1') {
-      return 'http://localhost:3001';
-    }
-    return origin;
+  if (env.DEV) {
+    return 'http://localhost:3001';
   }
 
-  // Fallback to same-origin
+  // Production: same-origin
   return '';
 }
 
