@@ -131,6 +131,8 @@ export function ItineraryGenerator() {
   const [error, setError] = useState<string | null>(null);
   const [pingStatus, setPingStatus] = useState<string | null>(null);
   const [directOnly, setDirectOnly] = useState(false);
+  const [hasSearched, setHasSearched] = useState(false); // Track if user has clicked search
+  const [lastSearchedDestination, setLastSearchedDestination] = useState(''); // Store searched destination for message
 
   // Date pairs modal state
   const [datePairsModalOpen, setDatePairsModalOpen] = useState(false);
@@ -150,6 +152,15 @@ export function ItineraryGenerator() {
     setItineraries([]);
     setError(null);
     setDirectOnly(false);
+    setHasSearched(false);
+    setLastSearchedDestination('');
+  };
+
+  // Clear "no results" state when any input changes
+  const clearSearchState = () => {
+    setHasSearched(false);
+    setItineraries([]);
+    setError(null);
   };
 
   const generateItineraries = async () => {
@@ -158,6 +169,7 @@ export function ItineraryGenerator() {
     setLoading(true);
     setError(null);
     setItineraries([]);
+    setLastSearchedDestination(destinationCity); // Store the destination being searched
 
     try {
       const payload = {
@@ -224,6 +236,7 @@ export function ItineraryGenerator() {
       setError(err?.message || 'Something went wrong');
     } finally {
       setLoading(false);
+      setHasSearched(true); // Mark that search has been performed
     }
   };
 
@@ -333,7 +346,7 @@ export function ItineraryGenerator() {
               <CreditCard className="inline w-4 h-4 mr-1" />
               Axis Bank Card
             </Label>
-            <Select value={axisCard} onValueChange={setAxisCard}>
+            <Select value={axisCard} onValueChange={(v) => { setAxisCard(v); clearSearchState(); }}>
               <SelectTrigger id="axis-card">
                 <SelectValue placeholder="Select card" />
               </SelectTrigger>
@@ -360,6 +373,7 @@ export function ItineraryGenerator() {
                 // Only allow digits
                 if (/^\d*$/.test(raw)) {
                   setAvailablePoints(raw);
+                  clearSearchState();
                 }
               }}
             />
@@ -370,7 +384,7 @@ export function ItineraryGenerator() {
               <Calendar className="inline w-4 h-4 mr-1" />
               Travel Month
             </Label>
-            <Select value={travelMonth} onValueChange={setTravelMonth}>
+            <Select value={travelMonth} onValueChange={(v) => { setTravelMonth(v); clearSearchState(); }}>
               <SelectTrigger id="travel-month">
                 <SelectValue placeholder="Select month" />
               </SelectTrigger>
@@ -389,7 +403,7 @@ export function ItineraryGenerator() {
               <Plane className="inline w-4 h-4 mr-1" />
               Cabin Type
             </Label>
-            <Select value={cabinType} onValueChange={setCabinType}>
+            <Select value={cabinType} onValueChange={(v) => { setCabinType(v); clearSearchState(); }}>
               <SelectTrigger id="cabin-type">
                 <SelectValue placeholder="Select cabin type" />
               </SelectTrigger>
@@ -408,7 +422,7 @@ export function ItineraryGenerator() {
               <MapPin className="inline w-4 h-4 mr-1" />
               Origin City
             </Label>
-            <Select value={originCity} onValueChange={setOriginCity}>
+            <Select value={originCity} onValueChange={(v) => { setOriginCity(v); clearSearchState(); }}>
               <SelectTrigger id="origin">
                 <SelectValue placeholder="Select origin" />
               </SelectTrigger>
@@ -432,7 +446,7 @@ export function ItineraryGenerator() {
               type="text"
               placeholder="e.g., Paris, France, Europe"
               value={destinationCity}
-              onChange={(e) => setDestinationCity(e.target.value)}
+              onChange={(e) => { setDestinationCity(e.target.value); clearSearchState(); }}
             />
           </div>
 
@@ -443,7 +457,7 @@ export function ItineraryGenerator() {
                 id="direct-only"
                 type="checkbox"
                 checked={directOnly}
-                onChange={(e) => setDirectOnly(e.target.checked)}
+                onChange={(e) => { setDirectOnly(e.target.checked); clearSearchState(); }}
                 className="h-4 w-4"
               />
               <span className="text-sm text-muted-foreground">
@@ -510,9 +524,10 @@ export function ItineraryGenerator() {
               ))}
             </div>
           </div>
-        ) : availablePoints && axisCard && itineraries.length === 0 && destinationCity ? (
+        ) : hasSearched && itineraries.length === 0 && !loading && !error ? (
           <div className="p-4 bg-muted rounded-lg text-center text-muted-foreground">
-            No trips found within your points budget. Try adding more points or adjusting your preferences.
+            <p className="font-medium">No {lastSearchedDestination} trips found within your points budget.</p>
+            <p className="text-sm mt-1">If you're searching for a specific city, try searching for the country or continent instead for more matches.</p>
           </div>
         ) : null}
       </CardContent>
