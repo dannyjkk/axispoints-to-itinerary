@@ -58,7 +58,7 @@ export default function App() {
               Generate Itineraries
             </TabsTrigger>
             <TabsTrigger value="calculate">
-              Calculate Points (Placeholder - WIP)
+              Calculate Points (Placeholder)
             </TabsTrigger>
           </TabsList>
 
