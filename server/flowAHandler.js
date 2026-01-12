@@ -81,8 +81,11 @@ Return a JSON array of exactly 5 short bullet strings (one sentence each). No nu
         rawOutput: content,
       });
       const parsed = JSON.parse(content);
-      const arr = Array.isArray(parsed) ? parsed : Array.isArray(parsed?.bullets) ? parsed.bullets : Array.isArray(parsed?.summary) ? parsed.summary : parsed?.tripSummary;
-      const bullets = Array.isArray(arr) ? arr : parsed?.airports ? [] : [];
+      // Handle various key names OpenAI might use: bullets, summary, tripSummary, trip_summary
+      const arr = Array.isArray(parsed)
+        ? parsed
+        : parsed?.bullets || parsed?.summary || parsed?.tripSummary || parsed?.trip_summary || [];
+      const bullets = Array.isArray(arr) ? arr : [];
       const cleaned = (bullets || []).map((s) => (typeof s === 'string' ? s.trim() : '')).filter(Boolean).slice(0, 5);
       const finalSummary = cleaned.length > 0 ? cleaned : DEFAULT_SUMMARY;
       const usedFallback = finalSummary.length === 1 && finalSummary[0] === DEFAULT_SUMMARY[0];
@@ -150,7 +153,10 @@ Focus on realistic day-by-day flow appropriate for the trip length.`;
         rawOutput: content,
       });
       const parsed = JSON.parse(content);
-      const arr = Array.isArray(parsed) ? parsed : Array.isArray(parsed?.bullets) ? parsed.bullets : Array.isArray(parsed?.summary) ? parsed.summary : parsed?.tripSummary;
+      // Handle various key names OpenAI might use: bullets, summary, tripSummary, trip_summary
+      const arr = Array.isArray(parsed)
+        ? parsed
+        : parsed?.bullets || parsed?.summary || parsed?.tripSummary || parsed?.trip_summary || [];
       const bullets = Array.isArray(arr) ? arr : [];
       const cleaned = (bullets || []).map((s) => (typeof s === 'string' ? s.trim() : '')).filter(Boolean).slice(0, 5);
       const finalSummary = cleaned.length > 0 ? cleaned : DEFAULT_SUMMARY;
