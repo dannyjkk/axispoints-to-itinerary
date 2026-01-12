@@ -98,7 +98,6 @@ These are **deliberate product decisions** to keep the MVP focused on:
 ---
 
 ## 🛠️ Tech Stack
-
 - Frontend: React + Vite
 - Backend: Node.js + Express
 - Data: Seats.aero cached award availability
@@ -121,7 +120,7 @@ These are **deliberate product decisions** to keep the MVP focused on:
   - Option A: `PORT=3001 npm run server` and `VITE_API_URL=http://localhost:3001 npm run dev`
   - Option B: ensure proxy present, run backend on :3001, then `npm run dev`
 - Production: set `VITE_API_URL=https://your-backend.example.com` in Vercel (Production & Preview).
-- Smoke test: open app, run generate, check Network tab calls `/api/generate-itinerary` to the expected domain and gets 200. Use Ping API button to verify connectivity.
+- Smoke test: open app, run generate, check Network tab calls `/api/generate-itinerary` to the expected domain and gets 200.
 
 ---
 

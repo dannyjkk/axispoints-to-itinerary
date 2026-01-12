@@ -102,6 +102,7 @@ export function ItineraryGenerator() {
   const [itineraries, setItineraries] = useState<Itinerary[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [pingStatus, setPingStatus] = useState<string | null>(null);
   const [directOnly, setDirectOnly] = useState(false);
   const [pingStatus, setPingStatus] = useState<string | null>(null);
 
