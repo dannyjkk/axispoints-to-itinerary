@@ -118,14 +118,26 @@ function cabinToCode(cabin) {
   return map[cabin] || null;
 }
 
-function monthToDateRange(monthLabel) {
-  if (!monthLabel) return { start_date: '', end_date: '' };
-  const date = new Date(`${monthLabel} 1`);
-  if (Number.isNaN(date.getTime())) return { start_date: '', end_date: '' };
-  const year = date.getFullYear();
-  const month = date.getMonth();
-  const start = new Date(Date.UTC(year, month, 1));
-  const end = new Date(Date.UTC(year, month + 1, 0));
+function monthToDateRange(input) {
+  if (!input || typeof input !== 'string') {
+    const err = new Error('Invalid travelMonth: required');
+    err.status = 400;
+    throw err;
+  }
+  const trimmed = input.trim();
+  let date;
+  if (/^\d{4}-\d{2}-\d{2}/.test(trimmed)) {
+    date = new Date(trimmed);
+  } else {
+    date = new Date(trimmed);
+  }
+  if (Number.isNaN(date.getTime())) {
+    const err = new Error('Invalid travelMonth format');
+    err.status = 400;
+    throw err;
+  }
+  const start = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1));
+  const end = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 0));
   return {
     start_date: start.toISOString().slice(0, 10),
     end_date: end.toISOString().slice(0, 10),

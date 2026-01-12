@@ -1,4 +1,4 @@
-const { processFlowA } = await import('../server/flowAHandler.js');
+import { processFlowA } from '../server/flowAHandler.js';
 
 export default async function handler(req, res) {
   try {
