@@ -39,7 +39,7 @@ async function fetchCachedSearch(origin, destination, startDate, endDate) {
     include_trips: 'false',
     only_direct_flights: 'false',
     include_filtered: 'false',
-    sources: 'united,aeroplan',
+    sources: 'united,aeroplan,singapore,flyingblue',
   });
 
   const url = `https://seats.aero/partnerapi/search?${params.toString()}`;
