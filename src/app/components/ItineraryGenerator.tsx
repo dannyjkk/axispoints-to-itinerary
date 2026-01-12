@@ -13,6 +13,7 @@ interface Itinerary {
   id: string;
   destination: string | null;
   destinationName?: string | null;
+  destinationAirport?: string | null; // IATA code for API calls
   duration: number;
   hotelStarRating: 4 | 5;
   stops?: number | null;
@@ -167,6 +168,7 @@ export function ItineraryGenerator() {
         id: String(idx + 1),
         destination: o.destinationName || o.destination || null,
         destinationName: o.destinationName || null,
+        destinationAirport: o.destination || null, // Keep airport code for API calls
         duration: 5,
         hotelStarRating: 4,
         stops: typeof o.stops === 'number' ? o.stops : null,
@@ -221,12 +223,13 @@ export function ItineraryGenerator() {
    * Open the date pairs modal and fetch exact dates & stays
    */
   const handleSeeExactDates = async (itinerary: Itinerary) => {
-    // Use originCity from form state + destination from the itinerary
+    // Use originCity from form state + destination airport code from the itinerary
     const origin = originCity; // form state
-    const dest = itinerary.destination || '';
+    const destAirport = itinerary.destinationAirport || itinerary.destination || '';
+    const destDisplay = itinerary.destination || destAirport; // For modal display
 
     // Use the travel month from form state
-    if (!travelMonth || !origin || !dest) {
+    if (!travelMonth || !origin || !destAirport) {
       return;
     }
 
@@ -248,7 +251,7 @@ export function ItineraryGenerator() {
     const endDate = end.toISOString().slice(0, 10);
 
     setSelectedOrigin(originAirport);
-    setSelectedDestination(dest);
+    setSelectedDestination(destDisplay); // Display city name in modal
     setDatePairsCards([]);
     setDatePairsError(null);
     setDatePairsLoading(true);
@@ -258,7 +261,7 @@ export function ItineraryGenerator() {
       const base = getApiBase();
       const params = new URLSearchParams({
         origin_airport: originAirport,
-        destination_airport: dest,
+        destination_airport: destAirport, // Use airport code for API
         start_date: startDate,
         end_date: endDate,
         min_nights: '3',
